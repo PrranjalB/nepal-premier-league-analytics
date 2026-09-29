@@ -495,7 +495,7 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
       <div class="seg" id="scoutingSeasonSeg"></div>
       <div class="seg"><button data-export="scoutImpact">Export MVPs CSV</button></div>
       <div class="seg"><button data-export="scoutAnchor">Export Anchors CSV</button></div>
-      <div class="seg"><button id="exportScoutPDF" type="button">Export Scouting PDF</button></div>
+      <button id="exportScoutPDF" class="seg button" style="background:var(--gold); color:#181008; border:none; padding:7px 14px; border-radius:6px; font-weight:700; cursor:pointer;">Export PDF Report</button>
     </div>
 
     <!-- NEW: War Room hero banner -->
@@ -686,25 +686,24 @@ function exportCSV(key){
   a.href=url; a.download=v.file+'.csv'; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 500);
 }
-async function exportScoutPDF(){
+function exportScoutPDF() {
   const element = document.getElementById('panel-scouting');
   if(!element || typeof html2pdf === 'undefined') return;
   const wasActive = element.classList.contains('active');
   const previousActive = document.querySelector('.panel.active');
   element.classList.add('active');
   const opt = {
-    margin:10,
-    filename:'npl-scouting-report.pdf',
-    image:{type:'jpeg',quality:0.98},
-    html2canvas:{scale:2,useCORS:true},
-    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
+    margin:       10,
+    filename:     'npl-scouting-war-room-report.pdf',
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
-  try{
-    await html2pdf().from(element).set(opt).save();
-  }finally{
+  const restore = () => {
     if(!wasActive) element.classList.remove('active');
     if(previousActive && previousActive !== element) previousActive.classList.add('active');
-  }
+  };
+  html2pdf().from(element).set(opt).save().then(restore).catch(restore);
 }
 
 document.querySelectorAll('[data-export]').forEach(btn=>btn.addEventListener('click', ()=>btn.dataset.export.split(',').forEach((k,i)=>setTimeout(()=>exportCSV(k), i*350))));
