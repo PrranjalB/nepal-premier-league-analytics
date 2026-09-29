@@ -1,0 +1,1816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nepal Premier League — Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- NEW: Chart.js for the Standings bar chart -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root{
+  --bg:#0B120E; --surface:#121D16; --surface2:#182417; --border:#243428;
+  --gold:#E8B34A; --red:#C1443C; --green-glow:#4E9E63;
+  --ink:#F2EFE6; --muted:#8FA396; --muted2:#5E7268;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* System preference applies only when the person hasn't manually chosen a theme */
+@media (prefers-color-scheme: light){
+  :root:not([data-theme]){
+    --bg:#F7F5EF; --surface:#FFFFFF; --surface2:#F0EDE4; --border:#DDD8CC;
+    --gold:#B8860B; --red:#B23B32; --green-glow:#3F8B54;
+    --ink:#1C2418; --muted:#5C6B5F; --muted2:#8B9A8E;
+  }
+}
+/* NEW: manual theme toggle — overrides system preference either direction */
+:root[data-theme="light"]{
+  --bg:#F7F5EF; --surface:#FFFFFF; --surface2:#F0EDE4; --border:#DDD8CC;
+  --gold:#B8860B; --red:#B23B32; --green-glow:#3F8B54;
+  --ink:#1C2418; --muted:#5C6B5F; --muted2:#8B9A8E;
+}
+:root[data-theme="dark"]{
+  --bg:#0B120E; --surface:#121D16; --surface2:#182417; --border:#243428;
+  --gold:#E8B34A; --red:#C1443C; --green-glow:#4E9E63;
+  --ink:#F2EFE6; --muted:#8FA396; --muted2:#5E7268;
+}
+*{box-sizing:border-box;}
+html{scroll-padding-top: env(safe-area-inset-top, 0px);}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:'Karla',sans-serif; font-size:15px; line-height:1.5;
+  min-height:100%;
+}
+h1,h2,h3,.num{font-family:'Barlow Condensed',sans-serif; font-weight:700; letter-spacing:.01em;}
+.wrap{max-width:1180px; margin:0 auto; padding:22px 20px 60px;}
+
+/* header */
+.header{display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:22px;}
+.title-block h1{font-size:34px; margin:0 0 2px; color:var(--ink);}
+.title-block h1 span{color:var(--gold);}
+.title-block p{margin:0; color:var(--muted); font-size:14px;}
+.stat-strip{display:flex; gap:22px;}
+.stat-strip div{text-align:right;}
+.stat-strip .num{font-size:26px; color:var(--gold); line-height:1;}
+.stat-strip .lbl{font-size:11px; color:var(--muted2); text-transform:uppercase; letter-spacing:.08em; margin-top:2px;}
+/* NEW: theme toggle button */
+.theme-toggle{background:var(--surface); border:1px solid var(--border); color:var(--ink); border-radius:8px; width:38px; height:38px; font-size:17px; cursor:pointer; display:flex; align-items:center; justify-content:center; align-self:flex-end;}
+.theme-toggle:hover{border-color:var(--gold);}
+
+/* tabs */
+.tabs{display:flex; gap:4px; margin-bottom:20px; border-bottom:1px solid var(--border); overflow-x:auto;}
+.tab-btn{background:none; border:none; color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:600; padding:10px 16px; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap;}
+.tab-btn.active{color:var(--gold); border-bottom-color:var(--gold);}
+.tab-btn:hover:not(.active){color:var(--ink);}
+
+.panel{display:none;}
+.panel.active{display:block;}
+
+/* controls */
+.controls{display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap;}
+.seg{display:flex; border:1px solid var(--border); border-radius:6px; overflow:hidden;}
+.seg button{background:var(--surface); color:var(--muted); border:none; padding:7px 14px; font-family:'Karla',sans-serif; font-size:13px; font-weight:700; cursor:pointer;}
+.seg button.active{background:var(--gold); color:#181008;}
+.search-input{background:var(--surface); border:1px solid var(--border); color:var(--ink); padding:7px 12px; border-radius:6px; font-family:'Karla',sans-serif; font-size:13px; min-width:180px;}
+.search-input::placeholder{color:var(--muted2);}
+.filter-select{background:var(--surface); border:1px solid var(--border); color:var(--ink); padding:7px 10px; border-radius:6px; font-family:'Karla',sans-serif; font-size:13px; cursor:pointer;}
+
+/* tables */
+.table-scroll{max-height:560px; overflow-y:auto; overflow-x:auto; border:1px solid var(--border); border-radius:8px;}
+table{width:100%; border-collapse:collapse; font-size:13.5px;}
+thead th{position:sticky; top:0; background:var(--surface2); color:var(--muted); text-align:right; padding:9px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; cursor:pointer; border-bottom:1px solid var(--border); user-select:none;}
+
+thead th.sorted{color:var(--gold);}
+thead th.sorted::after{content:' \25BC'; font-size:9px;}
+thead th.sorted.asc::after{content:' \25B2';}
+.modal-table{width:100%; font-size:12.5px;}
+.modal-table thead th{position:static; background:none; cursor:default; padding:5px 6px; border-bottom:1px solid var(--border);}
+.modal-table tbody td{padding:5px 6px;}
+.modal-table thead th:nth-child(n+2),
+.modal-table tbody td:nth-child(n+2){text-align:right !important;}
+.modal-team{color:var(--ink); font-size:13px; margin:0 0 2px;}
+tbody td{padding:8px 10px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap;}
+#standingsTable thead th:nth-child(-n+2), #standingsTable tbody td:nth-child(-n+2),
+#battingTable thead th:nth-child(-n+2), #battingTable tbody td:nth-child(-n+2),
+#bowlingTable thead th:nth-child(-n+2), #bowlingTable tbody td:nth-child(-n+2),
+#scoutImpactTable thead th:nth-child(-n+2), #scoutImpactTable tbody td:nth-child(-n+2),
+#truePhaseTable thead th:first-child, #truePhaseTable tbody td:first-child,
+#scoutAnchorTable thead th:first-child, #scoutAnchorTable tbody td:first-child,
+.modal-table thead th:first-child, .modal-table tbody td:first-child{text-align:left;}
+.h2h-table th, .h2h-table td{text-align:center !important;}
+.h2h-table tbody th{text-align:left !important;}
+tbody tr:hover{background:var(--surface);}
+tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--gold);}
+.rank{color:var(--muted2); font-variant-numeric:tabular-nums; width:28px;}
+.pname{font-weight:700;}
+
+/* NEW: player name click target (batting/bowling tables) */
+.team-hero{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--gold); border-radius:10px; padding:16px 20px; margin-bottom:16px;}
+.team-hero h2{margin:0; font-family:'Barlow Condensed',sans-serif; font-size:30px; color:var(--ink);}
+.team-hero .sub{color:var(--muted); font-size:13px;}
+.teams-split{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:6px;}
+#teamProfile table thead th:nth-child(-n+2), #teamProfile table tbody td:nth-child(-n+2){text-align:left;}
+@media(max-width:800px){ .teams-split{grid-template-columns:1fr;} }
+.player-link{cursor:pointer; border-bottom:1px dotted var(--muted2);}
+.player-link:hover{color:var(--gold);}
+
+/* NEW: standings chart container */
+.chart-box{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:16px; height:220px; position:relative;}
+
+/* NEW: player modal */
+.modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:50; align-items:center; justify-content:center; padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:22px 24px; max-width:480px; width:100%; max-height:80vh; overflow-y:auto; position:relative;}
+.modal-close{position:absolute; top:12px; right:12px; background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 8px;}
+.modal-close:hover{color:var(--ink);}
+.modal-box h3{margin:0 0 4px; font-size:24px; color:var(--gold);}
+.modal-box h4{margin:18px 0 8px; font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;}
+.modal-stat-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+.modal-period{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;} .modal-period .filter-select{min-width:150px;}
+.modal-stat{background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 10px;}
+.modal-stat .v{font-family:'Barlow Condensed'; font-size:20px; color:var(--ink);}
+.modal-stat .l{font-size:10px; color:var(--muted2); text-transform:uppercase; letter-spacing:.05em;}
+.compare-actions{position:fixed;right:20px;bottom:20px;z-index:45;display:flex;align-items:center;gap:8px;}
+.compare-fab{position:static;background:var(--gold);color:#181008;border:1px solid var(--gold);border-radius:999px;padding:10px 16px;font-family:'Karla',sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25);}
+.compare-clear{background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:999px;padding:10px 14px;font-family:'Karla',sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.18);}
+.compare-clear:hover{border-color:var(--gold);color:var(--gold);}
+.compare-fab:hover:not(:disabled){filter:brightness(1.04);}
+.compare-fab:disabled{opacity:.58;cursor:not-allowed;box-shadow:none;}
+.compare-check{width:15px;height:15px;margin:0 7px 0 0;vertical-align:-2px;accent-color:var(--gold);cursor:pointer;}
+.compare-check:disabled{cursor:not-allowed;}
+.modal-box.compare-mode{max-width:960px;max-height:88vh;}
+.compare-intro{color:var(--muted);font-size:12px;margin:0 0 12px;}
+.compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+.compare-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.compare-card h4{margin:0 0 8px;color:var(--gold);font-size:15px;}
+.compare-card .modal-stat-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+.compare-phase-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}
+.compare-phase-table th,.compare-phase-table td{padding:6px 7px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.compare-phase-table th{text-align:right;color:var(--muted2);font-size:10px;text-transform:uppercase;letter-spacing:.05em;}
+.compare-phase-table th:first-child,.compare-phase-table td:first-child{text-align:left;}
+.badge{display:inline-block; font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:.04em; vertical-align:middle; margin-left:4px;}
+.badge-anchor{background:rgba(78,158,99,.18); color:var(--green-glow);}
+.badge-power{background:rgba(232,179,74,.18); color:var(--gold);}
+.badge-struggler{background:rgba(193,68,60,.18); color:var(--red);}
+
+/* NEW: War Room hero banner */
+.warroom-hero{background:linear-gradient(135deg, #16241b, #101913); border:1px solid var(--gold); border-radius:12px; padding:22px 26px; margin-bottom:24px;}
+.warroom-hero h2{margin:0 0 6px; font-size:26px; color:var(--gold);}
+.warroom-hero p{margin:0; color:var(--muted); font-size:13.5px; max-width:640px; line-height:1.5;}
+
+/* NEW: gold-accented blueprint card (tactical toss insights) */
+.blueprint-card{background:var(--surface); border:1px solid var(--gold); border-radius:10px; padding:18px 20px; max-width:720px; box-shadow:0 0 0 1px rgba(232,179,74,.08) inset;}
+.blueprint-card h3{margin:0 0 12px; font-size:18px; color:var(--gold);}
+
+/* cards */
+.card-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-bottom:22px;}
+.card{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px;}
+.card h3{margin:0 0 10px; font-size:15px; color:var(--muted); font-weight:600; text-transform:none;}
+.card .big{font-size:30px; color:var(--gold);}
+.card .sub{font-size:12px; color:var(--muted2); margin-top:2px;}
+
+/* h2h */
+.h2h-table td, .h2h-table th{text-align:center; font-size:12px; padding:8px 6px;}
+.h2h-table thead th{position:sticky; top:0; z-index:2; background:var(--surface2); cursor:default;}
+.h2h-table thead th:first-child{position:sticky; left:0; top:0; z-index:3; background:var(--surface2);}
+.h2h-table tbody th{text-align:left; white-space:nowrap; position:sticky; left:0; background:var(--surface2); z-index:1; border-bottom:1px solid var(--border); font-weight:600;}
+.h2h-pill{display:inline-block; border:1px solid var(--border); border-radius:999px; padding:2px 9px; font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--ink); background:var(--surface);}
+.h2h-rowname{margin-left:8px; color:var(--muted); font-size:12px;}
+.h2h-cell{cursor:pointer; min-width:46px; transition:outline-color .15s;}
+.h2h-cell:hover{outline:1px solid var(--gold); outline-offset:-1px;}
+.h2h-cell.active-cell{outline:2px solid var(--gold); outline-offset:-2px; box-shadow:0 0 0 3px rgba(232,179,74,.25) inset;}
+.h2h-spotlight{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:22px;}
+.h2h-pick{display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; margin-bottom:18px;}
+.h2h-pick .filter-select{min-width:180px; font-weight:700; max-width:100%;}
+.h2h-vs{background:var(--gold); color:#181008; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:14px; letter-spacing:.1em; border-radius:999px; padding:5px 13px;}
+.h2h-score{display:grid; grid-template-columns:1fr auto 1fr; gap:14px; align-items:center; text-align:center; margin-bottom:12px;}
+.h2h-side .h2h-team{font-size:13px; color:var(--muted); font-weight:700;}
+.h2h-side .h2h-wins{font-size:40px; line-height:1.1; color:var(--c);}
+.h2h-side .h2h-pct{font-size:12px; color:var(--muted2);}
+.h2h-mid .h2h-played{font-size:28px; color:var(--ink); line-height:1;}
+.h2h-mid .lbl{font-size:10px; color:var(--muted2); text-transform:uppercase; letter-spacing:.08em;}
+.h2h-bar{display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--border);}
+.h2h-bar span{display:block; height:100%; transition:width .3s;}
+.h2h-note{font-size:12px; color:var(--muted2); text-align:center; margin:8px 0 0;}
+.playoff-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px;}
+.playoff-card{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:10px;}
+.playoff-final{border-color:var(--gold); box-shadow:0 0 0 1px rgba(232,179,74,.12) inset;}
+.playoff-head{display:flex; justify-content:space-between; align-items:center; gap:8px;}
+.form{display:inline-flex; gap:3px; justify-content:flex-end;}
+.form b{width:19px; height:19px; border-radius:4px; font-size:9.5px; display:inline-flex; align-items:center; justify-content:center; color:#fff; font-weight:700;}
+.stage-badge{background:var(--surface2); border:1px solid var(--border); color:var(--muted); border-radius:999px; padding:2px 10px; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;}
+.playoff-final .stage-badge{background:var(--gold); border-color:var(--gold); color:#181008;}
+.playoff-date{font-size:12px; color:var(--muted2);}
+.playoff-seed{font-size:11.5px; color:var(--muted2); margin-top:-4px;}
+.playoff-team{display:flex; justify-content:space-between; align-items:baseline; gap:10px; color:var(--muted); font-size:14px;}
+.playoff-team .sc{font-family:'Barlow Condensed',sans-serif; font-size:18px; white-space:nowrap;}
+.playoff-team .sc small{font-family:'Karla',sans-serif; font-size:11px; color:var(--muted2); margin-left:4px;}
+.playoff-team.win{color:var(--wc,var(--green-glow)); font-weight:700;}
+.playoff-result{border-top:1px solid var(--border); padding-top:9px; font-size:13px; color:var(--ink);}
+.playoff-potm{font-size:12px; color:var(--muted); margin-top:3px;}
+.champion{color:var(--gold); font-weight:700; font-size:14px;}
+.h2h-empty{color:var(--muted); text-align:center; margin:6px 0; font-size:14px;}
+.h2h-feed{margin-top:16px; border-top:1px solid var(--border);}
+.h2h-row{display:grid; grid-template-columns:150px 1fr auto; gap:12px; align-items:center; padding:10px 2px; border-bottom:1px solid var(--border); font-size:13px;}
+.h2h-when b{display:block; color:var(--ink);}
+.h2h-when span{color:var(--muted2); font-size:12px;}
+.h2h-margin{color:var(--muted);}
+.h2h-potm{color:var(--muted); font-size:12px; text-align:right;}
+@media(max-width:640px){
+  .playoff-grid{grid-template-columns:1fr;}
+  .h2h-row{grid-template-columns:1fr; gap:2px;}
+  .h2h-potm{text-align:left;}
+  .h2h-rowname{display:none;}
+  .h2h-side .h2h-wins{font-size:32px;}
+  .h2h-pick .filter-select{flex:1 1 100%;}
+}
+.h2h-diag{color:var(--muted2);}
+
+/* phase bars */
+.phase-row{display:flex; align-items:center; gap:12px; margin-bottom:12px;}
+.phase-label{width:100px; font-size:13px; color:var(--muted);}
+.phase-bar-bg{flex:1; background:var(--border); border-radius:4px; height:22px; position:relative; overflow:hidden;}
+.phase-bar-fill{height:100%; background:linear-gradient(90deg, var(--green-glow), var(--gold)); border-radius:4px;}
+.phase-val{width:70px; text-align:right; font-family:'Barlow Condensed'; font-size:16px; color:var(--ink);}
+
+.section-title{display:block;}
+.section-title{font-size:20px; margin:26px 0 12px; color:var(--ink);}
+.section-title:first-child{margin-top:0;}
+.hint{color:var(--muted2); font-size:12px; margin:-6px 0 14px;}
+
+
+@media(max-width:640px){
+  .title-block h1{font-size:26px;}
+  .stat-strip{gap:14px;}
+  .stat-strip .num{font-size:20px;}
+  /* BUG FIX (mobile): h2h-table used to be display:none on mobile, hiding it
+     entirely. Now it stays rendered and its parent .table-scroll (overflow-x:auto,
+     set globally above) lets users swipe through the grid horizontally instead. */
+  .modal-stat-grid{grid-template-columns:repeat(2,1fr);}
+  .compare-grid{grid-template-columns:1fr;}
+  .compare-card .modal-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .compare-actions{right:14px;bottom:calc(14px + env(safe-area-inset-bottom, 0px));max-width:calc(100vw - 28px);}
+  .compare-clear{padding:9px 12px;}
+
+  /* Sticky first two columns on narrow table views. */
+  #battingTable td:nth-child(-n+2), #battingTable th:nth-child(-n+2),
+  #bowlingTable td:nth-child(-n+2), #bowlingTable th:nth-child(-n+2),
+  #scoutImpactTable td:nth-child(-n+2), #scoutImpactTable th:nth-child(-n+2){
+    position:sticky;left:0;z-index:2;background:var(--surface);
+  }
+  #battingTable th:nth-child(-n+2), #bowlingTable th:nth-child(-n+2),
+  #scoutImpactTable th:nth-child(-n+2){background:var(--surface2);}
+  #battingTable td:nth-child(2), #battingTable th:nth-child(2),
+  #bowlingTable td:nth-child(2), #bowlingTable th:nth-child(2),
+  #scoutImpactTable td:nth-child(2), #scoutImpactTable th:nth-child(2){left:28px;}
+  #battingTable th:nth-child(1), #battingTable th:nth-child(2), #bowlingTable th:nth-child(1), #bowlingTable th:nth-child(2),
+  #scoutImpactTable th:nth-child(1), #scoutImpactTable th:nth-child(2){z-index:4;}
+  #truePhaseTable td:first-child, #truePhaseTable th:first-child { position: sticky; left: 0; z-index: 2; background: var(--surface); min-width: 120px; }
+  #truePhaseTable th:first-child { background: var(--surface2); z-index: 4; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="title-block">
+      <h1>Nepal Premier <span>League</span></h1>
+      <p id="subtitle">Two-season analytics — every ball, bat and wicket</p>
+    </div>
+    <div class="stat-strip" id="statStrip"></div>
+    <!-- NEW: manual theme toggle -->
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark theme">🌙</button>
+    <div class="compare-actions" id="compareActions" style="display:none">
+      <button id="compareFab" class="compare-fab" type="button" disabled aria-label="Compare selected players">Compare (0)</button>
+      <button id="compareClearFab" class="compare-clear" type="button" aria-label="Clear player comparison">Clear Comparison</button>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="standings">Standings</button>
+    <button class="tab-btn" data-tab="batting">Batting</button>
+    <button class="tab-btn" data-tab="bowling">Bowling</button>
+    <button class="tab-btn" data-tab="h2h">Head-to-Head</button>
+    <button class="tab-btn" data-tab="phases">Toss &amp; Phases</button>
+    <button class="tab-btn" data-tab="truephase">True Phase</button>
+    <button class="tab-btn" data-tab="teams">Teams</button>
+    <button class="tab-btn" data-tab="records">Records</button>
+    <button class="tab-btn" data-tab="matches">Matches</button>
+    <button class="tab-btn" data-tab="scouting">★ Scouting &amp; Draft</button>
+  </div>
+
+  <!-- STANDINGS -->
+  <div class="panel active" id="panel-standings">
+    <div class="controls">
+      <div class="seg" id="standingsSeasonSeg"></div>
+      <div class="seg"><button data-export="standings">Export CSV</button></div>
+    </div>
+    <div class="card-grid" id="leadersStrip"></div>
+    <!-- NEW: Points/NRR bar chart -->
+    <div class="chart-box"><canvas id="standingsChart" height="90"></canvas></div>
+    <div class="table-scroll">
+      <table id="standingsTable">
+        <thead><tr>
+          <th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>T</th><th>NR</th><th>Pts</th><th>NRR</th><th>Form</th>
+          <!-- NEW: bat-first vs chase win rates -->
+          <th>Bat1st%</th><th>Chase%</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="hint">Gold marker = top 4 (playoff qualification line). League-stage matches only; NRR excludes no-results.</p>
+
+    <div id="playoffsSection">
+      <h2 class="section-title">Playoffs &amp; Championship Stage</h2>
+      <div class="playoff-grid" id="playoffGrid"></div>
+    </div>
+  </div>
+
+  <!-- BATTING -->
+  <div class="panel" id="panel-batting">
+    <div class="controls">
+      <div class="seg" id="battingSeasonSeg"></div>
+      <input class="search-input" id="battingSearch" placeholder="Search player…">
+      <!-- NEW: Archetype + Volume filters -->
+      <select class="filter-select" id="battingArchetypeFilter">
+        <option value="all">All archetypes</option>
+        <option value="Anchor">Anchor</option>
+        <option value="Power">Power</option>
+        <option value="Struggler">Struggler</option>
+      </select>
+      <select class="filter-select" id="battingVolumeFilter">
+        <option value="0">All (any balls)</option>
+        <option value="25">Min 25 balls</option>
+        <option value="50">Min 50 balls</option>
+        <option value="100">Min 100 balls</option>
+      </select>
+      <!-- NEW: Team filter — restricts the table to players who appeared for the selected team's official lineup -->
+      <select class="filter-select" id="battingTeamFilter">
+        <option value="all">All teams</option>
+      </select>
+      <div class="seg"><button data-export="batting">Export CSV</button></div>
+    </div>
+    <div class="table-scroll">
+      <table id="battingTable">
+        <thead><tr>
+          <th data-key="rank">#</th><th data-key="player">Player</th><th data-key="innings">Inn</th>
+          <th data-key="runs">Runs</th><th data-key="avg">Avg</th><th data-key="sr">SR</th>
+          <th data-key="highest">HS</th><th data-key="fours">4s</th><th data-key="sixes">6s</th>
+          <th data-key="fifties">50s</th><th data-key="hundreds">100s</th>
+          <!-- NEW: dot ball %, boundary-runs %, balls-per-boundary -->
+          <th data-key="dotPct">Dot%</th><th data-key="boundaryPct">Bound%</th><th data-key="bpb">BpB</th><th data-key="nbsr" title="Non-Boundary Strike Rate: strike rate on balls that were not dots or boundaries">NBSR</th>
+          <!-- NEW: Impact Index (MVP score) -->
+          <th data-key="impact">Impact</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- BOWLING -->
+  <div class="panel" id="panel-bowling">
+    <div class="controls">
+      <div class="seg" id="bowlingSeasonSeg"></div>
+      <input class="search-input" id="bowlingSearch" placeholder="Search player…">
+      <!-- NEW: Overs + Phase filters -->
+      <select class="filter-select" id="bowlingOversFilter">
+        <option value="0">All (any overs)</option>
+        <option value="10">Min 10 overs</option>
+        <option value="20">Min 20 overs</option>
+      </select>
+      <select class="filter-select" id="bowlingPhaseFilter">
+        <option value="all">All phases</option>
+        <option value="pp">Powerplay specialists (min 4 PP overs)</option>
+      </select>
+      <!-- NEW: Team filter — restricts the table to players who appeared for the selected team's official lineup -->
+      <select class="filter-select" id="bowlingTeamFilter">
+        <option value="all">All teams</option>
+      </select>
+      <div class="seg"><button data-export="bowling">Export CSV</button></div>
+    </div>
+    <div class="table-scroll">
+      <table id="bowlingTable">
+        <thead><tr>
+          <th data-key="rank">#</th><th data-key="player">Player</th><th data-key="innings">Inn</th>
+          <th data-key="overs">Overs</th><th data-key="runs">Runs</th><th data-key="wickets">Wkts</th>
+          <th data-key="econ">Econ</th><th data-key="avg">Avg</th><th data-key="sr">SR</th>
+          <!-- NEW: dot ball % -->
+          <th data-key="dotPct">Dot%</th>
+          <!-- NEW: Impact Index, Powerplay wickets, Powerplay strike rate -->
+          <th data-key="impact">Impact</th><th data-key="ppWkts">PP Wkts</th><th data-key="ppSR">PP SR</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- HEAD TO HEAD -->
+  <div class="panel" id="panel-h2h">
+    <div class="controls">
+      <div class="seg" id="h2hSeasonSeg"></div>
+      <div class="seg"><button data-export="h2h">Export CSV</button></div>
+    </div>
+
+    <div class="h2h-spotlight" id="h2hSpotlight">
+      <div class="h2h-pick">
+        <select class="filter-select" id="h2hTeam1Select" aria-label="Team 1"></select>
+        <span class="h2h-vs">VS</span>
+        <select class="filter-select" id="h2hTeam2Select" aria-label="Team 2"></select>
+      </div>
+      <div id="h2hSpotBody"></div>
+    </div>
+
+    <h2 class="section-title">Wins against each opponent</h2>
+    <p class="hint" id="h2hHint"></p>
+    <div class="table-scroll" style="max-height:none;">
+      <table class="h2h-table" id="h2hTable"></table>
+    </div>
+  </div>
+
+  <!-- PHASES -->
+  <div class="panel" id="panel-phases">
+    <!-- NEW: season toggle — toss win rates are now calculated live from DATA.matches for the selected season -->
+    <div class="controls">
+      <div class="seg" id="phasesSeasonSeg"></div>
+    </div>
+    <h2 class="section-title">Toss impact</h2>
+    <div class="card-grid" id="tossCards"></div>
+
+    <h2 class="section-title">Scoring by phase</h2>
+    <p class="hint">Run rate: Powerplay (overs 1–6) · Middle (7–15) · Death (16–20), across all matches.</p>
+    <div id="phaseBars"></div>
+  </div>
+
+  <!-- NEW PANEL: True Phase Performance (player rate minus tournament phase average) -->
+  <div class="panel" id="panel-truephase">
+    <div class="controls">
+      <div class="seg" id="truePhaseTypeSeg"></div>
+      <div class="seg" id="truePhaseSeasonSeg"></div>
+      <input class="search-input" id="truePhaseSearch" placeholder="Search player…">
+      <select class="filter-select" id="truePhaseTeamFilter">
+        <option value="all">All teams</option>
+      </select>
+      <div class="seg"><button data-export="truephase">Export CSV</button></div>
+    </div>
+    <p class="hint">True SR / True Econ = player's phase rate minus the tournament's average rate for that phase. Positive True SR is better for batters; negative True Econ is better for bowlers. Minimum 24 balls faced/bowled in a phase to qualify.</p>
+    <div class="table-scroll">
+      <table id="truePhaseTable">
+        <thead><tr>
+          <th data-key="player">Player</th>
+          <th data-key="pp">Powerplay</th><th data-key="mid">Middle</th><th data-key="death">Death</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- NEW PANEL: Scouting Report — draft-prep analysis, computed live from DATA -->
+  <div class="panel" id="panel-teams">
+    <div class="controls">
+      <select class="filter-select" id="teamProfileSelect" aria-label="Team"></select>
+      <div class="seg" id="teamSeasonSeg"></div>
+    </div>
+    <div id="teamProfile"></div>
+  </div>
+
+  <!-- MATCH CENTER -->
+  <div class="panel" id="panel-matches">
+    <div class="controls"><div class="seg" id="matchesSeasonSeg"></div></div>
+    <div id="matchesGrid" class="playoff-grid"></div>
+  </div>
+
+  <!-- RECORDS -->
+  <div class="panel" id="panel-records">
+    <div class="controls"><div class="seg" id="recordsSeasonSeg"></div></div>
+    <div id="recordsGrid" class="card-grid"></div>
+  </div>
+
+  <div class="panel" id="panel-scouting">
+    <!-- NEW: Season toggle — Scouting War Room recalculates for the selected season -->
+    <div class="controls">
+      <div class="seg" id="scoutingSeasonSeg"></div>
+      <div class="seg"><button data-export="scoutImpact">Export MVPs CSV</button></div>
+      <div class="seg"><button data-export="scoutAnchor">Export Anchors CSV</button></div>
+      <div class="seg"><button id="exportScoutPDF" type="button">Export Scouting PDF</button></div>
+    </div>
+
+    <!-- NEW: War Room hero banner -->
+    <div class="warroom-hero">
+      <h2>★ Scouting &amp; Draft War Room</h2>
+      <p>Data-driven picks for the upcoming draft — Impact scoring, phase specialists, and archetype reads, computed live from the full ball-by-ball record.</p>
+    </div>
+
+    <h2 class="section-title">Impact Index — Top 5 Tournament MVPs</h2>
+    <p class="hint" id="scoutImpactHint"></p>
+    <div class="table-scroll" style="max-height:none;">
+      <table id="scoutImpactTable">
+        <thead><tr>
+          <th>#</th><th>Player</th><th>Runs</th><th>Wkts</th><th>Sixes</th><th>Dots Bowled</th><th>Dots Faced</th><th>Impact Score</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h2 class="section-title">Powerplay Specialists</h2>
+    <p class="hint">True Econ / True SR = player's Powerplay rate minus the tournament's Powerplay baseline. Minimum 24 PP balls to qualify.</p>
+    <div class="card-grid" id="scoutPPCards"></div>
+
+    <h2 class="section-title">Archetype Evaluation — Anchors (&gt;50 balls faced, Dot% &lt; 35%, Boundary% &lt; 50%)</h2>
+    <div class="table-scroll" style="max-height:320px;">
+      <table id="scoutAnchorTable">
+        <thead><tr><th>Player</th><th>Avg</th><th>SR</th><th>Dot%</th><th>Boundary%</th><th>Dismissals</th><th>Read</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h2 class="section-title">Venue &amp; Toss Strategy</h2>
+    <div id="scoutVenueCard" class="blueprint-card"></div>
+  </div>
+
+</div>
+
+<script>
+let DATA, PLAYER_TEAMS, PLAYER_TEAMS_BY_SEASON;
+
+async function loadNPLData() {
+  try {
+    const response = await fetch('npl_data.json');
+    if (!response.ok) throw new Error('Failed to load tournament data');
+    const json = await response.json();
+    DATA = json.DATA;
+    PLAYER_TEAMS = json.PLAYER_TEAMS;
+    PLAYER_TEAMS_BY_SEASON = json.PLAYER_TEAMS_BY_SEASON;
+
+    initializeApp();
+  } catch (err) {
+    console.error(err);
+    document.body.innerHTML = `<div style="padding:40px;color:#C1443C;font-family:sans-serif;"><h2>Error Loading Dashboard Data</h2><p>${err.message}. Make sure you are running a local development server (e.g., Live Server) to support fetch requests.</p></div>`;
+  }
+}
+
+function initializeApp() {
+// ---------- theme restore: must run BEFORE any render so Chart.js reads the right CSS variables ----------
+try{ const t = localStorage.getItem('npl-theme'); if(t==='light' || t==='dark') document.documentElement.setAttribute('data-theme', t); }catch(e){}
+
+// ---------- generic helpers ----------
+function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+function fmt(v){ return (v===null||v===undefined) ? '—' : v; }
+function pct(n,d){ return d ? +(n/d*100).toFixed(1) : 0; }
+function signed(n){ return Number.isFinite(Number(n)) ? (n>0?'+':'') + n : '—'; }
+const STRING_KEYS = new Set(['player']);      // sort with localeCompare
+const UNSORTABLE_KEYS = new Set(['rank']);    // '#' column — index only, not sortable
+
+// ---------- header stats ----------
+(function(){
+  const totalPlayers = new Set();
+  DATA.batting.all.forEach(b=>totalPlayers.add(b.player));
+  DATA.bowling.all.forEach(b=>totalPlayers.add(b.player));
+  const strip = document.getElementById('statStrip');
+  [[DATA.matches.length,'Matches'],[DATA.seasons.length,'Seasons'],
+   [totalPlayers.size,'Players'],[DATA.venues.length,'Venue'+(DATA.venues.length>1?'s':'')]]
+  .forEach(([n,l])=>strip.appendChild(el('div','',`<div class="num">${n}</div><div class="lbl">${l}</div>`)));
+})();
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    // BUG FIX (0x0 canvas): flush any chart render that was skipped while hidden.
+    if(btn.dataset.tab==='standings' && pendingStandingsRows){
+      renderStandingsChart(pendingStandingsRows);
+      pendingStandingsRows = null;
+    }
+  });
+});
+
+function buildSeg(containerId, options, onChange){
+  const c = document.getElementById(containerId);
+  c.innerHTML='';
+  options.forEach((opt,i)=>{
+    const b = el('button', i===0?'active':'', opt.label);
+    b.addEventListener('click', ()=>{
+      c.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      onChange(opt.value);
+    });
+    c.appendChild(b);
+  });
+}
+
+// NEW: fills a <select> with every team that appears in DATA.matches (alphabetical,
+// "All teams" first) and wires its change event to onChange(selectedTeam).
+function populateTeamFilter(selectId, onChange){
+  const select = document.getElementById(selectId);
+  if(!select) return;
+  const teams = Array.from(new Set(DATA.matches.flatMap(m=>[m.team1, m.team2]))).sort();
+  teams.forEach(team=>{
+    const opt = el('option', '', team);
+    opt.value = team;
+    select.appendChild(opt);
+  });
+  select.addEventListener('change', e=>onChange(e.target.value));
+}
+
+// generic comparator: strings via localeCompare, unsortable keys are a no-op.
+// null / undefined / NaN ALWAYS sink to the bottom, whatever the direction.
+const isNil = v => v===null || v===undefined || (typeof v==='number' && isNaN(v));
+const LOWER_IS_BETTER = { bowling: new Set(['econ','avg','sr','ppSR']) };   // bowling rate metrics: ascending first
+function makeComparator(key, dir){
+  if(UNSORTABLE_KEYS.has(key)) return ()=>0;
+  const isStr = STRING_KEYS.has(key);
+  return (a,b)=>{
+    const av=a[key], bv=b[key], an=isNil(av), bn=isNil(bv);
+    if(an && bn) return 0;
+    if(an) return 1;
+    if(bn) return -1;
+    return (isStr ? String(av).localeCompare(String(bv)) : (av-bv)) * dir;
+  };
+}
+// header click: first click uses the metric's "best first" direction, repeat clicks toggle.
+function attachSort(tableId, state, render, lowerBetter){
+  document.querySelectorAll('#'+tableId+' thead th').forEach(th=>{
+    th.setAttribute('aria-sort','none');
+    if(th.dataset.key && !UNSORTABLE_KEYS.has(th.dataset.key)) th.tabIndex = 0;
+    th.addEventListener('keydown', e=>{
+      if((e.key==='Enter'||e.key===' ') && th.dataset.key && !UNSORTABLE_KEYS.has(th.dataset.key)){ e.preventDefault(); th.click(); }
+    });
+    th.addEventListener('click', ()=>{
+    const k=th.dataset.key;
+    if(!k || UNSORTABLE_KEYS.has(k)) return;
+    if(state.sortKey===k) state.sortDir*=-1;
+    else { state.sortKey=k; state.sortDir = (STRING_KEYS.has(k) || (lowerBetter && lowerBetter.has(k))) ? 1 : -1; }
+    render();
+    });
+  });
+}
+function markSorted(tableId, key, dir){
+  document.querySelectorAll('#'+tableId+' thead th').forEach(th=>{
+    const active = th.dataset.key===key;
+    th.classList.toggle('sorted', active);
+    th.classList.toggle('asc', active && dir===1);
+    th.setAttribute('aria-sort', active ? (dir===1 ? 'ascending' : 'descending') : 'none');
+  });
+}
+const emptyRow = n => `<tr><td colspan="${n}" style="text-align:center; padding:20px; color:var(--muted2);">No players found matching filters</td></tr>`;
+// Team filter: season views use that season's lineup; All-time falls back to the global roster map.
+const playerInTeam = (player, team, season) =>
+  season==='all' ? (PLAYER_TEAMS[player]||[]).includes(team) : ((PLAYER_TEAMS_BY_SEASON[season]||{})[player]||[]).includes(team);
+const fmtOvers = balls => `${Math.floor(balls / 6)}.${balls % 6}`;   // cricket notation: 4 balls -> 0.4, 14 -> 2.2
+const TEAM_ABBR = {'Biratnagar Kings':'BIR','Janakpur Bolts':'JAN','Kathmandu Gorkhas':'KTH','Chitwan Rhinos':'CHW','Karnali Yaks':'KAR','Lumbini Lions':'LUM','Pokhara Avengers':'POK','Sudurpaschim Royals':'SUD'};
+const abbr = t => TEAM_ABBR[t] || t.slice(0,3).toUpperCase();
+const teamBadges = (name, season) => {
+  const teams = season && season!=='all'
+    ? ((PLAYER_TEAMS_BY_SEASON[season]||{})[name] || [])
+    : (PLAYER_TEAMS[name] || []);
+  return teams.map(t=>`<span class="h2h-pill" title="${t}">${abbr(t)}</span>`).join(' ');
+};
+const slug = s => s==='all' ? 'all-time' : String(s).replace('/','-');
+
+// ---------- CSV export: every render stores its filtered + sorted view ----------
+const csvStore = {};
+function toCSV(head, rows){
+  const q = v => { if(v===null||v===undefined) return ''; const s=String(v); return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  return [head].concat(rows).map(r=>r.map(q).join(',')).join('\r\n');
+}
+function exportCSV(key){
+  const v = csvStore[key]; if(!v) return;
+  const blob = new Blob(['\uFEFF'+toCSV(v.head, v.rows)], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href=url; a.download=v.file+'.csv'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+async function exportScoutPDF(){
+  const element = document.getElementById('panel-scouting');
+  if(!element || typeof html2pdf === 'undefined') return;
+  const wasActive = element.classList.contains('active');
+  const previousActive = document.querySelector('.panel.active');
+  element.classList.add('active');
+  const opt = {
+    margin:10,
+    filename:'npl-scouting-report.pdf',
+    image:{type:'jpeg',quality:0.98},
+    html2canvas:{scale:2,useCORS:true},
+    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
+  };
+  try{
+    await html2pdf().from(element).set(opt).save();
+  }finally{
+    if(!wasActive) element.classList.remove('active');
+    if(previousActive && previousActive !== element) previousActive.classList.add('active');
+  }
+}
+
+document.querySelectorAll('[data-export]').forEach(btn=>btn.addEventListener('click', ()=>btn.dataset.export.split(',').forEach((k,i)=>setTimeout(()=>exportCSV(k), i*350))));
+document.getElementById('exportScoutPDF')?.addEventListener('click', exportScoutPDF);
+
+// ======================================================================
+// IMPACT INDEX (MVP score), combined batting + bowling per player:
+//   Runs + (Wickets*20) + (DotsBowled*1) + (Sixes*2) - (DotsFaced*0.5)
+// ======================================================================
+function impactIndexMap(season){
+  const map = {};
+  DATA.batting[season].forEach(b=>{
+    map[b.player] = (map[b.player]||0) + b.runs + b.sixes*2 - b.dots*0.5;
+  });
+  DATA.bowling[season].forEach(b=>{
+    map[b.player] = (map[b.player]||0) + b.wickets*20 + b.dots*1;
+  });
+  return map;
+}
+
+// ======================================================================
+// STANDINGS
+// BUG FIX (Super Over NRR leak): innings_summary now filtered to
+// i.innings <= 2 — super-over innings (3 & 4) must never count toward NRR.
+// ======================================================================
+function computeStandings(season){
+  const leagueIds = new Set(DATA.matches.filter(m=>m.season===season && m.match_number!=null).map(m=>m.match_id));
+  const teams = {};
+  const ensure = t => teams[t] || (teams[t] = {team:t,played:0,won:0,lost:0,tied:0,nr:0,pts:0,
+    runsFor:0,oversFor:0,runsAgainst:0,oversAgainst:0,
+    bat1stPlayed:0,bat1stWon:0,chasePlayed:0,chaseWon:0});
+
+  DATA.matches.filter(m=>leagueIds.has(m.match_id)).forEach(m=>{
+    ensure(m.team1).played++; ensure(m.team2).played++;
+    if(m.result==='no result'){ ensure(m.team1).nr++; ensure(m.team2).nr++; ensure(m.team1).pts++; ensure(m.team2).pts++; }
+    else if(m.result==='tie'){ ensure(m.team1).tied++; ensure(m.team2).tied++; ensure(m.team1).pts++; ensure(m.team2).pts++; }
+    else if(m.winner){
+      ensure(m.winner).won++; ensure(m.winner).pts+=2;
+      ensure(m.winner===m.team1 ? m.team2 : m.team1).lost++;
+    }
+    const batFirst = m.toss_decision==='bat' ? m.toss_winner : (m.toss_winner===m.team1 ? m.team2 : m.team1);
+    const chaseTeam = batFirst===m.team1 ? m.team2 : m.team1;
+    ensure(batFirst).bat1stPlayed++; ensure(chaseTeam).chasePlayed++;
+    if(m.winner===batFirst) ensure(batFirst).bat1stWon++;
+    if(m.winner===chaseTeam) ensure(chaseTeam).chaseWon++;
+  });
+
+  // BUG FIX: `&& i.innings <= 2` excludes Super Over innings (3, 4) from NRR.
+  DATA.innings_summary.filter(i=>leagueIds.has(i.match_id) && i.innings <= 2).forEach(i=>{
+    const overs = i.all_out ? 20 : i.legal_balls/6;
+    const bt = teams[i.batting_team], bw = teams[i.bowling_team];
+    if(bt){ bt.runsFor += i.runs; bt.oversFor += overs; }
+    if(bw){ bw.runsAgainst += i.runs; bw.oversAgainst += overs; }
+  });
+
+  return Object.values(teams).map(t=>({
+    ...t,
+    nrr: +(((t.oversFor?t.runsFor/t.oversFor:0) - (t.oversAgainst?t.runsAgainst/t.oversAgainst:0)).toFixed(3)),
+    bat1stWinPct: pct(t.bat1stWon, t.bat1stPlayed),
+    chaseWinPct: pct(t.chaseWon, t.chasePlayed),
+  })).sort((a,b)=> b.pts-a.pts || b.nrr-a.nrr);
+}
+
+const PLAYOFF_STAGES = [['Qualifier 1','1st vs 2nd'],['Eliminator','3rd vs 4th'],['Qualifier 2','Loser of Q1 vs winner of Eliminator'],['Final','Winners of Q1 and Q2']];
+function renderPlayoffs(season){
+  const grid = document.getElementById('playoffGrid');
+  grid.innerHTML = PLAYOFF_STAGES.map(([stage,seed])=>{
+    const m = DATA.matches.find(x=>x.season===season && x.stage===stage);
+    const isFinal = stage==='Final';
+    if(!m) return `<div class="playoff-card${isFinal?' playoff-final':''}"><div class="playoff-head"><span class="stage-badge">${stage}</span></div><div class="playoff-seed">${seed}</div><div class="playoff-date">Not played</div></div>`;
+    const innings = DATA.innings_summary.filter(i=>i.match_id===m.match_id && i.innings<=2).sort((a,b)=>a.innings-b.innings);
+    const date = new Date(m.date+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    const wc = isFinal ? 'var(--gold)' : 'var(--green-glow)';
+    const rows = innings.map(i=>`<div class="playoff-team${i.batting_team===m.winner?' win':''}" style="--wc:${wc}"><span>${i.batting_team}</span><span class="sc">${i.runs}/${i.wickets}<small>${fmtOvers(i.legal_balls)} ov</small></span></div>`).join('');
+    const potm = m.player_of_match ? `<div class="playoff-potm">POTM · <span class="player-link" data-player="${m.player_of_match}">${m.player_of_match}</span></div>` : '';
+    return `<div class="playoff-card${isFinal?' playoff-final':''}">`+
+      `<div class="playoff-head"><span class="stage-badge">${stage}</span><span class="playoff-date">${date}</span></div>`+
+      (isFinal && m.winner ? `<div class="champion">🏆 Champion: ${m.winner}</div>` : `<div class="playoff-seed">${seed}</div>`)+
+      rows+`<div class="playoff-result">${h2hResultText(m)}${potm}</div></div>`;
+  }).join('');
+}
+function renderLeaders(season){
+  const bat = (DATA.batting[season]||[]).slice().sort((a,b)=>b.runs-a.runs || (b.avg||0)-(a.avg||0))[0];
+  const bowl = (DATA.bowling[season]||[]).slice().sort((a,b)=>b.wickets-a.wickets || a.econ-b.econ)[0];
+  const im = impactIndexMap(season);
+  const mvp = Object.entries(im).sort((a,b)=>b[1]-a[1])[0];
+  const link = n => `<span class="player-link" data-player="${n}">${n}</span>`;
+  const dot = c => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c};margin-right:6px;"></span>`;
+  const card = (color,label,name,big,sub) => `<div class="card"><h3>${dot(color)}${label}</h3><div class="pname" style="font-size:17px;">${link(name)} ${teamBadges(name, season)}</div><div class="big num">${big}</div><div class="sub">${sub}</div></div>`;
+  const box = document.getElementById('leadersStrip');
+  box.innerHTML = (bat ? card('#E8892A','Orange Cap · Top Run Scorer',bat.player,bat.runs,'runs · avg '+fmt(bat.avg)) : '')+
+    (bowl ? card('#8E5BD6','Purple Cap · Top Wicket Taker',bowl.player,bowl.wickets,'wickets · econ '+bowl.econ) : '')+
+    (mvp ? card('var(--gold)','Tournament MVP · Impact Leader',mvp[0],(+mvp[1].toFixed(1)),'impact score') : '');
+}
+// Last 5 completed matches for a team in the season (league + playoffs), oldest -> newest.
+function formOf(team, season){
+  return DATA.matches
+    .filter(m=>m.season===season && m.match_number!=null && (m.team1===team || m.team2===team) && (m.winner || m.result))
+    .sort((a,b)=>a.date.localeCompare(b.date) || a.match_id.localeCompare(b.match_id))
+    .slice(-5)
+    .map(m=> m.winner ? (m.winner===team ? 'W' : 'L') : (m.result==='no result' ? 'NR' : 'T'));
+}
+function formBadges(team, season){
+  const bg = {W:'var(--green-glow)', L:'var(--red)', T:'var(--muted2)', NR:'var(--muted2)'};
+  return `<span class="form" aria-label="Last five league-stage results">${formOf(team, season).map(x=>`<b style="background:${bg[x]}" title="${x}" aria-label="${x}">${x}</b>`).join('')}</span>`;
+}
+function nrrBreakdown(team, season){
+  const matches = DATA.matches.filter(m=>m.season===season && m.match_number!=null && (m.team1===team || m.team2===team));
+  const teamIds = new Set(matches.map(m=>m.match_id));
+  const innings = DATA.innings_summary.filter(i=>teamIds.has(i.match_id) && i.innings<=2);
+  let runsFor=0, runsAgainst=0, ballsFor=0, ballsAgainst=0;
+  innings.forEach(i=>{
+    const overs = i.all_out ? 120 : (Number(i.legal_balls) || 0);
+    if(i.batting_team===team){ runsFor += Number(i.runs)||0; ballsFor += overs; }
+    if(i.bowling_team===team){ runsAgainst += Number(i.runs)||0; ballsAgainst += overs; }
+  });
+  const runRateFor = ballsFor ? runsFor/(ballsFor/6) : 0;
+  const runRateAgainst = ballsAgainst ? runsAgainst/(ballsAgainst/6) : 0;
+  const nrr = +(runRateFor-runRateAgainst).toFixed(3);
+  return {matches:matches.length,runsFor,runsAgainst,ballsFor,ballsAgainst,runRateFor,runRateAgainst,nrr};
+}
+const standingsSeasonState = {season:DATA.seasons[0]};
+function renderStandings(season){
+  standingsSeasonState.season = season;
+  const rows = computeStandings(season);
+  const tbody = document.querySelector('#standingsTable tbody');
+  tbody.innerHTML='';
+  rows.forEach((r,i)=>{
+    const tr = el('tr', i<4?'qualify':'');
+    // BUG FIX (NRR formatting): raw r.nrr stays a plain number for sorting elsewhere;
+    // only the *displayed* string is forced to 3 decimals via toFixed(3).
+    const nrrDisplay = (r.nrr>=0?'+':'') + r.nrr.toFixed(3);
+    tr.innerHTML = `<td class="rank">${i+1}</td><td class="pname">${r.team}</td><td>${r.played}</td>`+
+      `<td>${r.won}</td><td>${r.lost}</td><td>${r.tied}</td><td>${r.nr}</td><td>${r.pts}</td>`+
+      `<td title="${(() => { const n=nrrBreakdown(r.team,season); return `Runs for ${n.runsFor} · ${n.ballsFor} balls | Runs against ${n.runsAgainst} · ${n.ballsAgainst} balls | RF rate ${n.runRateFor.toFixed(2)} · RA rate ${n.runRateAgainst.toFixed(2)}`; })()}">${nrrDisplay}</td><td>${formBadges(r.team, season)}</td><td>${r.bat1stWinPct}%</td><td>${r.chaseWinPct}%</td>`;
+    tbody.appendChild(tr);
+  });
+  renderLeaders(season);
+  renderPlayoffs(season);
+  csvStore.standings = { file:'npl_standings_'+slug(season),
+    head:['#','Team','P','W','L','T','NR','Pts','NRR','Form','Bat1st%','Chase%'],
+    rows:rows.map((r,i)=>[i+1,r.team,r.played,r.won,r.lost,r.tied,r.nr,r.pts,r.nrr,formOf(r.team, season).join(''),r.bat1stWinPct,r.chaseWinPct]) };
+  renderStandingsChart(rows);
+}
+
+// ======================================================================
+// NEW: Standings bar chart (Chart.js) — Points (left axis) + NRR (right axis)
+// ======================================================================
+// BUG FIX (0x0 canvas): a chart created while its panel is display:none
+// gets measured at 0x0 and never recovers. We now (a) skip creation while
+// hidden, caching the rows instead, and (b) redraw when the Standings tab
+// becomes active again, so switching tabs never leaves a collapsed chart.
+// ======================================================================
+let standingsChartInstance = null;
+let pendingStandingsRows = null;
+let lastStandingsRows = null;
+// Reads the live CSS variables so the chart follows data-theme (or the system preference).
+function chartPalette(){
+  const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
+  return { red: v('--red'), ink: v('--ink'), muted: v('--muted'), border: v('--border'), gold: v('--gold'), green: v('--green-glow') };
+}
+function renderStandingsChart(rows){
+  const canvas = document.getElementById('standingsChart');
+  const panel = document.getElementById('panel-standings');
+  if(!canvas || typeof Chart === 'undefined') return;
+  lastStandingsRows = rows;
+  if(standingsChartInstance){ standingsChartInstance.destroy(); standingsChartInstance = null; }
+  if(!panel.classList.contains('active')){ pendingStandingsRows = rows; return; }
+  const pal = chartPalette();
+  const axisTitle = t => ({display:true, text:t, color:pal.muted});
+  standingsChartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: rows.map(r=>r.team),
+      datasets: [
+        { label:'Points', data:rows.map(r=>r.pts), backgroundColor:pal.gold, yAxisID:'y', borderRadius:3 },
+        { label:'NRR', data:rows.map(r=>r.nrr), backgroundColor:rows.map(r=>r.nrr>=0 ? pal.green : pal.red), yAxisID:'y1', borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:pal.ink } } },
+      scales:{
+        x:{ ticks:{ color:pal.muted, maxRotation:60, minRotation:30, font:{size:10} }, grid:{ color:pal.border }, border:{ color:pal.border } },
+        y:{ position:'left', title:axisTitle('Points'), ticks:{ color:pal.muted }, grid:{ color:pal.border }, border:{ color:pal.border } },
+        y1:{ position:'right', title:axisTitle('NRR'), ticks:{ color:pal.muted }, grid:{ drawOnChartArea:false }, border:{ color:pal.border } },
+      }
+    }
+  });
+}
+// Destroy + rebuild with the current palette (called by the theme toggle / system theme change).
+function rerenderStandingsChart(){ if(lastStandingsRows) renderStandingsChart(lastStandingsRows); }
+
+buildSeg('standingsSeasonSeg', DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1)+' · '+s, value:s})), renderStandings);
+renderStandings(DATA.seasons[0]);
+
+// ======================================================================
+// BATTING
+// + Impact Index column
+// + Archetype badges (Anchor / Power / Struggler) next to player name
+// BUG FIX (sort crash): makeComparator() handles 'player' (string) and
+// 'rank' (unsortable) instead of falling through to numeric subtraction.
+// ======================================================================
+function archetypeOf(dotPct, boundaryPct, balls){
+  if(!balls || balls < 20) return null;
+  if(dotPct < 35 && boundaryPct < 50) return 'Anchor';
+  if(boundaryPct > 65) return 'Power';
+  if(dotPct > 50 && boundaryPct < 40) return 'Struggler';
+  return null;
+}
+function archetypeBadge(archetype){
+  if(!archetype) return '';
+  const cls = {Anchor:'badge-anchor', Power:'badge-power', Struggler:'badge-struggler'}[archetype];
+  return `<span class="badge ${cls}">${archetype}</span>`;
+}
+function battingDerived(r, impactMap){
+  const dotPct = pct(r.dots, r.balls);
+  const boundaryPct = pct(r.fours*4 + r.sixes*6, r.runs);
+  const archetype = archetypeOf(dotPct, boundaryPct, r.balls);
+  // Non-Boundary Strike Rate: how well a batter rotates the strike (boundaries stripped out)
+  const boundaryRuns = (r.fours*4) + (r.sixes*6);
+  const nbRuns  = r.runs - boundaryRuns;
+  const nbBalls = r.balls - r.dots - r.fours - r.sixes;
+  const nbsr = nbBalls > 0 ? +((nbRuns / nbBalls) * 100).toFixed(1) : null;   // null when no non-boundary scoring balls
+  return { ...r,
+    dotPct, boundaryPct, archetype, nbsr,
+    bpb: (r.fours+r.sixes) ? +(r.balls/(r.fours+r.sixes)).toFixed(1) : null,
+    impact: +((impactMap[r.player]||0).toFixed(1)),
+    badge: archetypeBadge(archetype),
+  };
+}
+
+let compareList = [];
+let compareSeasonContext = 'all';
+function syncCompareUI(){
+  const hasSelection = compareList.length > 0;
+  const actionsBar = document.getElementById('compareActions');
+  const fab = document.getElementById('compareFab');
+  const clearFab = document.getElementById('compareClearFab');
+
+  if(actionsBar) actionsBar.style.display = hasSelection ? 'flex' : 'none';
+
+  if(fab){
+    fab.hidden = false; // parent wrapper controls visibility
+    fab.textContent = `Compare (${compareList.length})`;
+    fab.disabled = compareList.length!==2;
+    fab.title = compareList.length===2 ? 'Compare the selected players' : 'Select two players to compare';
+  }
+  if(clearFab) clearFab.hidden = false; // parent wrapper controls visibility
+
+  document.querySelectorAll('.compare-check').forEach(cb=>{
+    const selected = compareList.includes(cb.dataset.player);
+    cb.checked = selected;
+    cb.disabled = compareList.length>=2 && !selected;
+  });
+}
+function clearComparison(){
+  compareList = [];
+  compareSeasonContext = 'all';
+  syncCompareUI();
+  closePlayerModal();
+}
+document.addEventListener('change', e=>{
+  const cb = e.target.closest('.compare-check');
+  if(!cb) return;
+  const name = cb.dataset.player;
+  const season = cb.dataset.season || 'all';
+  if(cb.checked){
+    if(compareList.length>=2 && !compareList.includes(name)){
+      cb.checked = false;
+      syncCompareUI();
+      alert('You can compare a maximum of 2 players.');
+      return;
+    }
+    if(!compareList.includes(name)) compareList.push(name);
+    compareSeasonContext = season;
+  }else{
+    compareList = compareList.filter(x=>x!==name);
+  }
+  syncCompareUI();
+});
+let battingState = {season:'all', sortKey:'runs', sortDir:-1, search:'', archetype:'all', minBalls:0, team:'all'};
+function renderBatting(){
+  const impactMap = impactIndexMap(battingState.season);
+  let rows = DATA.batting[battingState.season].map(r=>battingDerived(r, impactMap));
+  if(battingState.search) rows = rows.filter(r=>r.player.toLowerCase().includes(battingState.search));
+  // NEW: Archetype filter
+  if(battingState.archetype!=='all') rows = rows.filter(r=>r.archetype===battingState.archetype);
+  // NEW: Volume filter (min balls faced)
+  if(battingState.minBalls>0) rows = rows.filter(r=>r.balls>=battingState.minBalls);
+  // NEW: Team filter — only players whose official lineup included this team
+  if(battingState.team!=='all') rows = rows.filter(r=>playerInTeam(r.player, battingState.team, battingState.season));
+  rows.sort(makeComparator(battingState.sortKey, battingState.sortDir));
+  const tbody = document.querySelector('#battingTable tbody');
+  tbody.innerHTML='';
+  csvStore.batting = { file:'npl_batting_'+slug(battingState.season),
+    head:['#','Player','Inn','Runs','Avg','SR','HS','4s','6s','50s','100s','Dot%','Bound%','BpB','NBSR','Impact','Archetype'],
+    rows:rows.map((r,i)=>[i+1,r.player,r.innings,r.runs,r.avg,r.sr,r.highest,r.fours,r.sixes,r.fifties,r.hundreds,r.dotPct,r.boundaryPct,r.bpb,r.nbsr,r.impact,r.archetype||'']) };
+  if(!rows.length){ tbody.innerHTML = emptyRow(16); }
+  rows.forEach((r,i)=>{
+    const tr = el('tr');
+    tr.innerHTML = `<td class="rank">${i+1}</td><td class="pname"><input class="compare-check" type="checkbox" data-player="${r.player}" data-season="${battingState.season}" aria-label="Add ${r.player} to comparison"> <span class="player-link" data-player="${r.player}">${r.player}</span> ${r.badge}</td><td>${r.innings}</td>`+
+      `<td>${r.runs}</td><td>${fmt(r.avg)}</td><td>${fmt(r.sr)}</td><td>${r.highest}</td>`+
+      `<td>${r.fours}</td><td>${r.sixes}</td><td>${r.fifties}</td><td>${r.hundreds}</td>`+
+      `<td>${r.dotPct}%</td><td>${r.boundaryPct}%</td><td>${fmt(r.bpb)}</td><td>${fmt(r.nbsr)}</td><td>${r.impact}</td>`;
+    tbody.appendChild(tr);
+  });
+  markSorted('battingTable', battingState.sortKey, battingState.sortDir);
+  syncCompareUI();
+}
+buildSeg('battingSeasonSeg', [{label:'All-time',value:'all'}].concat(DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1),value:s}))), v=>{battingState.season=v; renderBatting();});
+attachSort('battingTable', battingState, renderBatting);
+document.getElementById('battingSearch').addEventListener('input', e=>{battingState.search=e.target.value.toLowerCase(); renderBatting();});
+// NEW: Archetype + Volume filter listeners
+document.getElementById('battingArchetypeFilter').addEventListener('change', e=>{battingState.archetype=e.target.value; renderBatting();});
+document.getElementById('battingVolumeFilter').addEventListener('change', e=>{battingState.minBalls=+e.target.value; renderBatting();});
+// NEW: populate + wire the team filter (teams derived from DATA.matches, alphabetical)
+populateTeamFilter('battingTeamFilter', v=>{battingState.team=v; renderBatting();});
+renderBatting();
+
+// ======================================================================
+// BOWLING
+// + Impact Index, Powerplay Wickets, Powerplay Strike Rate columns
+// BUG FIX (sort crash): same makeComparator() as batting.
+// ======================================================================
+function bowlingDerived(r, impactMap){
+  const pp = r.phase.powerplay;
+  const ppWkts = pp ? pp.wkts : 0;
+  const ppSR = (pp && pp.wkts) ? +(pp.balls/pp.wkts).toFixed(1) : null; // balls per wicket in PP
+  return { ...r, dotPct: pct(r.dots, r.balls),
+    impact: +((impactMap[r.player]||0).toFixed(1)),
+    ppWkts, ppSR };
+}
+
+let bowlingState = {season:'all', sortKey:'wickets', sortDir:-1, search:'', minOvers:0, phase:'all', team:'all'};
+function renderBowling(){
+  const impactMap = impactIndexMap(bowlingState.season);
+  let rows = DATA.bowling[bowlingState.season].map(r=>bowlingDerived(r, impactMap));
+  if(bowlingState.search) rows = rows.filter(r=>r.player.toLowerCase().includes(bowlingState.search));
+  // NEW: Overs filter (min overs bowled)
+  if(bowlingState.minOvers>0) rows = rows.filter(r=>r.overs>=bowlingState.minOvers);
+  // NEW: Phase filter — "Powerplay specialists" = min 4 PP overs (24 PP balls)
+  if(bowlingState.phase==='pp') rows = rows.filter(r=>r.phase.powerplay && r.phase.powerplay.balls>=24);
+  // NEW: Team filter — only players whose official lineup included this team
+  if(bowlingState.team!=='all') rows = rows.filter(r=>playerInTeam(r.player, bowlingState.team, bowlingState.season));
+  rows.sort(makeComparator(bowlingState.sortKey, bowlingState.sortDir));
+  const tbody = document.querySelector('#bowlingTable tbody');
+  tbody.innerHTML='';
+  csvStore.bowling = { file:'npl_bowling_'+slug(bowlingState.season),
+    head:['#','Player','Inn','Overs','Runs','Wkts','Econ','Avg','SR','Dot%','Impact','PP Wkts','PP SR'],
+    rows:rows.map((r,i)=>[i+1,r.player,r.innings,fmtOvers(r.balls),r.runs,r.wickets,r.econ,r.avg,r.sr,r.dotPct,r.impact,r.ppWkts,r.ppSR]) };
+  if(!rows.length){ tbody.innerHTML = emptyRow(13); }
+  rows.forEach((r,i)=>{
+    const tr = el('tr');
+    tr.innerHTML = `<td class="rank">${i+1}</td><td class="pname"><input class="compare-check" type="checkbox" data-player="${r.player}" data-season="${bowlingState.season}" aria-label="Add ${r.player} to comparison"> <span class="player-link" data-player="${r.player}">${r.player}</span></td><td>${r.innings}</td>`+
+      `<td>${fmtOvers(r.balls)}</td><td>${r.runs}</td><td>${r.wickets}</td><td>${r.econ}</td>`+
+      `<td>${fmt(r.avg)}</td><td>${fmt(r.sr)}</td><td>${r.dotPct}%</td>`+
+      `<td>${r.impact}</td><td>${r.ppWkts}</td><td>${fmt(r.ppSR)}</td>`;
+    tbody.appendChild(tr);
+  });
+  markSorted('bowlingTable', bowlingState.sortKey, bowlingState.sortDir);
+  syncCompareUI();
+}
+buildSeg('bowlingSeasonSeg', [{label:'All-time',value:'all'}].concat(DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1),value:s}))), v=>{bowlingState.season=v; renderBowling();});
+attachSort('bowlingTable', bowlingState, renderBowling, LOWER_IS_BETTER.bowling);
+document.getElementById('bowlingSearch').addEventListener('input', e=>{bowlingState.search=e.target.value.toLowerCase(); renderBowling();});
+// NEW: Overs + Phase filter listeners
+document.getElementById('bowlingOversFilter').addEventListener('change', e=>{bowlingState.minOvers=+e.target.value; renderBowling();});
+document.getElementById('bowlingPhaseFilter').addEventListener('change', e=>{bowlingState.phase=e.target.value; renderBowling();});
+// NEW: populate + wire the team filter (teams derived from DATA.matches, alphabetical)
+populateTeamFilter('bowlingTeamFilter', v=>{bowlingState.team=v; renderBowling();});
+renderBowling();
+
+// ---------- HEAD TO HEAD: computed live from DATA.matches, per season ----------
+function computeH2H(season){
+  const matches = DATA.matches.filter(m=>season==='all' || m.season===season);
+  const teams = Array.from(new Set(matches.flatMap(m=>[m.team1,m.team2]))).sort();
+  const wins = {}, played = {};
+  let maxWins = 0;
+  matches.forEach(m=>{
+    const k = [m.team1,m.team2].sort().join('|');
+    played[k] = (played[k]||0)+1;
+    if(m.winner){
+      const loser = m.winner===m.team1 ? m.team2 : m.team1, wk = m.winner+'|'+loser;
+      wins[wk] = (wins[wk]||0)+1;
+      if(wins[wk] > maxWins) maxWins = wins[wk];
+    }
+  });
+  return { teams, wins, played, maxWins };
+}
+const h2hState = { season:'all', t1:null, t2:null };
+
+function h2hResultText(m){
+  if(!m.winner) return m.result==='no result' ? 'No result' : 'Match tied';
+  if(m.result && /super over/i.test(m.result)) return `<b>${m.winner}</b> <span class="h2h-margin">won in a Super Over</span>`;
+  const by = m.win_by_runs!=null ? m.win_by_runs+' runs' : (m.win_by_wickets!=null ? m.win_by_wickets+' wkts' : '');
+  return `<b>${m.winner}</b> <span class="h2h-margin">won${by?' by '+by:''}</span>`;
+}
+function renderH2HSpotlight(){
+  const {t1,t2,season} = h2hState, box = document.getElementById('h2hSpotBody');
+  if(t1===t2){ box.innerHTML = '<p class="h2h-empty">Pick two different teams to see their head-to-head record.</p>'; return; }
+  const ms = DATA.matches.filter(m=>(season==='all'||m.season===season) && ((m.team1===t1&&m.team2===t2)||(m.team1===t2&&m.team2===t1)))
+                         .sort((a,b)=>a.date.localeCompare(b.date));
+  if(!ms.length){ box.innerHTML = '<p class="h2h-empty">These teams did not meet in this season.</p>'; return; }
+  const n = ms.length, w1 = ms.filter(m=>m.winner===t1).length, w2 = ms.filter(m=>m.winner===t2).length, dec = w1+w2;
+  const side = (t,w,c) => `<div class="h2h-side" style="--c:${c}"><div class="h2h-team">${t}</div><div class="h2h-wins num">${w}</div><div class="h2h-pct">${pct(w,n)}% win rate</div></div>`;
+  const fmtDate = d => new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  box.innerHTML =
+    `<div class="h2h-score">${side(t1,w1,'var(--gold)')}<div class="h2h-mid"><div class="num h2h-played">${n}</div><div class="lbl">played</div></div>${side(t2,w2,'var(--green-glow)')}</div>`+
+    `<div class="h2h-bar" title="${t1} ${w1} – ${w2} ${t2}"><span style="width:${dec?w1/dec*100:0}%;background:var(--gold)"></span><span style="width:${dec?w2/dec*100:0}%;background:var(--green-glow)"></span></div>`+
+    (n>dec ? `<p class="h2h-note">${n-dec} without a result</p>` : '')+
+    `<div class="h2h-feed">`+ms.map(m=>{
+      const c = m.winner===t1 ? 'var(--gold)' : (m.winner===t2 ? 'var(--green-glow)' : 'var(--muted)');
+      return `<div class="h2h-row"><div class="h2h-when"><b>${fmtDate(m.date)}</b><span>${m.stage}${season==='all'?' · '+m.season:''}</span></div>`+
+        `<div style="color:${c}">${h2hResultText(m)}</div><div class="h2h-potm">POTM · ${m.player_of_match ? `<span class="player-link" data-player="${m.player_of_match}">${m.player_of_match}</span>` : '—'}</div></div>`;
+    }).join('')+`</div>`;
+}
+function pickH2HTeams(rt, ct){
+  h2hState.t1 = rt; h2hState.t2 = ct;
+  document.getElementById('h2hTeam1Select').value = rt;
+  document.getElementById('h2hTeam2Select').value = ct;
+  renderH2H(h2hState.season);
+  document.getElementById('h2hSpotlight').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function renderH2H(season){
+  h2hState.season = season;
+  const { teams, wins, played, maxWins } = computeH2H(season);
+  const t1Select = document.getElementById('h2hTeam1Select'), t2Select = document.getElementById('h2hTeam2Select');
+  const previous = [h2hState.t1, h2hState.t2];
+  [t1Select, t2Select].forEach((select, idx)=>{
+    select.innerHTML = '';
+    teams.forEach(t=>{ const o = el('option','',t); o.value = t; select.appendChild(o); });
+    const preferred = previous[idx];
+    select.value = teams.includes(preferred) ? preferred : (teams[idx] || teams[0] || '');
+  });
+  h2hState.t1 = t1Select.value || teams[0] || null;
+  h2hState.t2 = t2Select.value || teams[1] || teams[0] || null;
+  const table = document.getElementById('h2hTable');
+  table.innerHTML = '';
+  const label = season==='all' ? 'all matches, both seasons combined' : 'season '+season+' only';
+  document.getElementById('h2hHint').textContent = "Row team's wins over column team ("+label+"). Click any cell to inspect that matchup.";
+  table.appendChild(el('thead')).appendChild(el('tr','', '<th></th>' + teams.map(t=>`<th><span class="h2h-pill" title="${t}">${abbr(t)}</span></th>`).join('')));
+  const tbody = el('tbody');
+  teams.forEach(rt=>{
+    const tr = el('tr'); tr.appendChild(el('th','', `<span class="h2h-pill" title="${rt}">${abbr(rt)}</span><span class="h2h-rowname">${rt}</span>`));
+    teams.forEach(ct=>{
+      if(rt===ct){ tr.appendChild(el('td','h2h-diag','–')); return; }
+      const w = wins[rt+'|'+ct] || 0;
+      const td = el('td','h2h-cell', w || '–');
+      td.title = `${rt} beat ${ct} ${w}× (${played[[rt,ct].sort().join('|')]||0} played)`;
+      td.tabIndex = 0;
+      if(w > 0){   // richer green = more wins vs that opponent, scaled to this season's max
+        const intensity = maxWins ? w / maxWins : 0;
+        td.style.background = `rgba(78,158,99,${(0.15 + intensity*0.65).toFixed(2)})`;
+        td.style.color = intensity > 0.55 ? '#0B120E' : 'var(--ink)';
+        td.style.fontWeight = '700';
+      }
+      if(rt===h2hState.t1 && ct===h2hState.t2) td.classList.add('active-cell');
+      td.addEventListener('click', ()=>pickH2HTeams(rt, ct));
+      td.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); pickH2HTeams(rt, ct); } });
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  csvStore.h2h = { file:'npl_h2h_'+slug(season), head:['Team'].concat(teams),
+    rows:teams.map(rt=>[rt].concat(teams.map(ct=>rt===ct ? '' : (wins[rt+'|'+ct]||0)))) };
+  renderH2HSpotlight();
+}
+(function initH2H(){
+  const onChange = () => {
+    h2hState.t1 = document.getElementById('h2hTeam1Select').value;
+    h2hState.t2 = document.getElementById('h2hTeam2Select').value;
+    renderH2H(h2hState.season);
+  };
+  document.getElementById('h2hTeam1Select').addEventListener('change', onChange);
+  document.getElementById('h2hTeam2Select').addEventListener('change', onChange);
+})();
+buildSeg('h2hSeasonSeg', [{label:'All-time',value:'all'}].concat(DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1)+' · '+s,value:s}))), renderH2H);
+renderH2H('all');
+
+// ---------- data audit (console only): every match present, 2 regular innings each, H2H ties out ----------
+(function auditData(){
+  const issues = [], ids = new Set(DATA.matches.map(m=>m.match_id));
+  if(ids.size !== DATA.matches.length) issues.push('duplicate match ids');
+  DATA.matches.forEach(m=>{
+    const n = DATA.innings_summary.filter(i=>i.match_id===m.match_id && i.innings<=2).length;
+    if(n !== 2) issues.push(m.match_id+': '+n+' regular innings');
+  });
+  const h = computeH2H('all');
+  Object.entries(DATA.h2h).forEach(([k,v])=>{
+    const [a,b] = k.split('|||');
+    if((h.wins[a+'|'+b]||0)!==(v['won_'+a]||0) || (h.wins[b+'|'+a]||0)!==(v['won_'+b]||0)) issues.push('H2H mismatch '+k);
+  });
+  if(issues.length) console.warn('[NPL data audit]', issues);
+  else console.info('[NPL data audit] OK — '+DATA.matches.length+' matches, '+DATA.innings_summary.length+' innings summaries');
+})();
+
+// ======================================================================
+// TOSS & PHASES
+// NEW: season toggle — toss win rates are computed live from DATA.matches
+// for the selected season (instead of always reading the hardcoded,
+// all-time-only DATA.toss_impact object), so the cards react per season.
+// Phase run-rate bars already have per-season data in DATA.phases and now
+// respond to the same toggle.
+// ======================================================================
+function computeTossImpact(season){
+  const matches = DATA.matches.filter(m => season==='all' || m.season===season);
+  let total=0, tossWinnerAlsoWon=0, batCount=0, batWins=0, fieldCount=0, fieldWins=0;
+  matches.forEach(m=>{
+    total++;
+    if(m.toss_decision==='bat'){ batCount++; if(m.winner===m.toss_winner) batWins++; }
+    else if(m.toss_decision==='field'){ fieldCount++; if(m.winner===m.toss_winner) fieldWins++; }
+    if(m.winner && m.winner===m.toss_winner) tossWinnerAlsoWon++;
+  });
+  return {
+    total,
+    toss_winner_also_match_winner: tossWinnerAlsoWon,
+    decision_bat_count: batCount,
+    decision_bat_winrate: batCount ? +(batWins/batCount*100).toFixed(1) : 0,
+    decision_field_count: fieldCount,
+    decision_field_winrate: fieldCount ? +(fieldWins/fieldCount*100).toFixed(1) : 0,
+  };
+}
+
+function renderPhases(season){
+  const t = computeTossImpact(season);
+  const cards = document.getElementById('tossCards');
+  cards.innerHTML = '';
+  [[`${t.toss_winner_also_match_winner} / ${t.total} (${pct(t.toss_winner_also_match_winner, t.total)}%)`, 'Toss winner also won match'],
+   [t.decision_field_winrate+'%', `Win rate choosing to field (${t.decision_field_count} matches)`],
+   [t.decision_bat_winrate+'%', `Win rate choosing to bat (${t.decision_bat_count} matches)`]]
+  .forEach(([big,label])=>cards.appendChild(el('div','card', `<h3>${label}</h3><div class="big">${big}</div>`)));
+
+  const phaseNames = {powerplay:'Powerplay', middle:'Middle overs', death:'Death overs'};
+  const container = document.getElementById('phaseBars');
+  container.innerHTML = '';
+  const p = DATA.phases[season] || DATA.phases.all || {};
+  const rates = Object.values(p).map(x=>Number(x?.run_rate)).filter(Number.isFinite);
+  const maxRR = Math.max(...rates, 0);
+  Object.entries(phaseNames).forEach(([key,label])=>{
+    const rr = Number(p[key]?.run_rate);
+    const valid = Number.isFinite(rr);
+    const width = valid && maxRR > 0 ? Math.min(100, Math.max(0, rr/maxRR*100)) : 0;
+    const row = el('div','phase-row');
+    row.innerHTML = `<div class="phase-label">${label}</div><div class="phase-bar-bg"><div class="phase-bar-fill" style="width:${width.toFixed(1)}%"></div></div><div class="phase-val">${valid ? rr+' rpo' : '—'}</div>`;
+    container.appendChild(row);
+  });
+}
+buildSeg('phasesSeasonSeg', [{label:'All-time',value:'all'}].concat(DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1)+' · '+s,value:s}))), renderPhases);
+renderPhases('all');
+
+// ======================================================================
+// TRUE PHASE
+// BUG FIX: default (no column chosen) sort now uses Math.max for batting
+// (higher True SR = better) but Math.min for bowling (more negative
+// True Econ = better/more restrictive) — previously always used Math.max.
+// NEW: Powerplay/Middle/Death headers are clickable to sort by that
+// specific phase's trueValue instead of the "best phase" default.
+// ======================================================================
+const MIN_PHASE_BALLS = 24;
+const PHASE_KEY_MAP = {pp:'powerplay', mid:'middle', death:'death'};
+
+function trueBattingPhase(r, season){
+  const tp = DATA.phases[season];
+  const out = {};
+  ['powerplay','middle','death'].forEach(ph=>{
+    const p = r.phase[ph];
+    if(!p || p.balls < MIN_PHASE_BALLS){ out[ph]=null; return; }
+    const sr = +(p.runs/p.balls*100).toFixed(1);
+    out[ph] = { value: sr, trueValue: +(sr - tp[ph].strike_rate).toFixed(1), balls:p.balls };
+  });
+  return out;
+}
+function trueBowlingPhase(r, season){
+  const tp = DATA.phases[season];
+  const out = {};
+  ['powerplay','middle','death'].forEach(ph=>{
+    const p = r.phase[ph];
+    if(!p || p.balls < MIN_PHASE_BALLS){ out[ph]=null; return; }
+    const econ = +(p.runs/(p.balls/6)).toFixed(2);
+    out[ph] = { value: econ, trueValue: +(econ - tp[ph].run_rate).toFixed(2), balls:p.balls };
+  });
+  return out;
+}
+
+let truePhaseState = {type:'batting', season:'all', search:'', team:'all', sortPhase:null, sortDir:-1};
+function renderTruePhase(){
+  const isBat = truePhaseState.type==='batting';
+  const source = (isBat ? DATA.batting : DATA.bowling)[truePhaseState.season];
+  let rows = source.map(r=>({ player:r.player, phase: isBat ? trueBattingPhase(r, truePhaseState.season) : trueBowlingPhase(r, truePhaseState.season) }))
+                   .filter(r=> r.phase.powerplay || r.phase.middle || r.phase.death);
+  if(truePhaseState.search) rows = rows.filter(r=>r.player.toLowerCase().includes(truePhaseState.search));
+  if(truePhaseState.team!=='all') rows = rows.filter(r=>playerInTeam(r.player, truePhaseState.team, truePhaseState.season));
+
+  if(truePhaseState.sortPhase==='player'){
+    rows.sort((a,b)=>a.player.localeCompare(b.player)*truePhaseState.sortDir);   // A→Z first, click again for Z→A
+  } else if(truePhaseState.sortPhase){
+    // Sort by the clicked phase; repeat clicks toggle direction. Rows lacking the phase always sink to the bottom.
+    const ph = PHASE_KEY_MAP[truePhaseState.sortPhase], dir = truePhaseState.sortDir;
+    rows.sort((a,b)=>{
+      const av = a.phase[ph] ? a.phase[ph].trueValue : null, bv = b.phase[ph] ? b.phase[ph].trueValue : null;
+      if(av===null && bv===null) return 0;
+      if(av===null) return 1;
+      if(bv===null) return -1;
+      return (av-bv)*dir;
+    });
+  } else {
+    // default: best phase (batting Math.max, bowling Math.min)
+    const bestOf = r => ['powerplay','middle','death'].map(ph=>r.phase[ph]?.trueValue).filter(v=>v!==undefined && v!==null);
+    rows.sort((a,b)=>{
+      const av = bestOf(a), bv = bestOf(b);
+      const aBest = av.length ? (isBat?Math.max(...av):Math.min(...av)) : (isBat?-Infinity:Infinity);
+      const bBest = bv.length ? (isBat?Math.max(...bv):Math.min(...bv)) : (isBat?-Infinity:Infinity);
+      return isBat ? (bBest-aBest) : (aBest-bBest);
+    });
+  }
+
+  const cell = c => c ? `${signed(c.trueValue)} <span style="color:var(--muted2)">(${c.value}${isBat?'':' rpo'}, n=${c.balls})</span>` : '<span style="color:var(--muted2)">—</span>';
+  const tbody = document.querySelector('#truePhaseTable tbody');
+  tbody.innerHTML='';
+  rows.forEach(r=>{
+    const tr = el('tr');
+    tr.innerHTML = `<td class="pname"><span class="player-link" data-player="${r.player}">${r.player}</span></td><td>${cell(r.phase.powerplay)}</td><td>${cell(r.phase.middle)}</td><td>${cell(r.phase.death)}</td>`;
+    tbody.appendChild(tr);
+  });
+  if(!rows.length){ tbody.innerHTML = emptyRow(4); }
+  const m = isBat ? ['True SR','SR'] : ['True Econ','Econ'];
+  csvStore.truephase = { file:'npl_truephase_'+truePhaseState.type+'_'+slug(truePhaseState.season)+(truePhaseState.team!=='all'?'_'+truePhaseState.team.replace(/\s+/g,'-'):''),
+    head:['Player'].concat(['Powerplay','Middle','Death'].flatMap(p=>[p+' '+m[0], p+' '+m[1], p+' Balls'])),
+    rows:rows.map(r=>[r.player].concat(['powerplay','middle','death'].flatMap(ph=>{ const c=r.phase[ph]; return c ? [c.trueValue,c.value,c.balls] : [null,null,null]; }))) };
+  markSorted('truePhaseTable', truePhaseState.sortPhase, truePhaseState.sortDir);
+}
+buildSeg('truePhaseTypeSeg', [{label:'Batting',value:'batting'},{label:'Bowling',value:'bowling'}], v=>{truePhaseState.type=v; truePhaseState.sortPhase=null; renderTruePhase();});
+buildSeg('truePhaseSeasonSeg', [{label:'All-time',value:'all'}].concat(DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1),value:s}))), v=>{truePhaseState.season=v; renderTruePhase();});
+document.getElementById('truePhaseSearch').addEventListener('input', e=>{truePhaseState.search=e.target.value.toLowerCase(); renderTruePhase();});
+populateTeamFilter('truePhaseTeamFilter', v=>{truePhaseState.team=v; renderTruePhase();});
+// Phase headers: first click sorts best-first (batting desc / bowling asc); clicking the active phase toggles direction.
+document.querySelectorAll('#truePhaseTable thead th').forEach(th=>{
+  const k = th.dataset.key;
+  th.setAttribute('aria-sort','none');
+  th.tabIndex = 0;
+  th.addEventListener('keydown', e=>{ if((e.key==='Enter'||e.key===' ') && th.dataset.key){ e.preventDefault(); th.click(); } });
+  th.addEventListener('click', ()=>{
+    if(truePhaseState.sortPhase===k) truePhaseState.sortDir *= -1;
+    else { truePhaseState.sortPhase = k; truePhaseState.sortDir = k==='player' ? 1 : (truePhaseState.type==='batting' ? -1 : 1); }
+    renderTruePhase();
+  });
+});
+renderTruePhase();
+
+// ======================================================================
+// NEW: Player stat modal — click any player name to see combined
+// batting + bowling stats in one view. Uses event delegation so it
+// keeps working after every table re-render (no per-row listeners).
+// ======================================================================
+const MODAL_PHASES = [['powerplay','Powerplay'],['middle','Middle'],['death','Death']];
+let playerModalState = {name:null, names:null, season:'all'};
+function openPlayerModal(name, season='all'){
+  playerModalState = {name, names:null, season};
+  renderPlayerModal();
+}
+function openPlayerComparison(names, season='all'){
+  playerModalState = {name:null, names:[...names].slice(0,2), season};
+  renderPlayerModal();
+}
+function comparisonPhaseRow(label, batPhase, bowlPhase){
+  const bat = batPhase ? `${batPhase.runs} / ${batPhase.balls} (${batPhase.balls ? (batPhase.runs/batPhase.balls*100).toFixed(1) : '—'} SR)` : '—';
+  const bowlEcon = bowlPhase && bowlPhase.balls >= 6 ? (bowlPhase.runs/(bowlPhase.balls/6)).toFixed(2) : '—';
+  const bowl = bowlPhase ? `${bowlPhase.wkts || 0} W / ${fmtOvers(bowlPhase.balls)} (${bowlEcon} Econ)` : '—';
+  return `<tr><td>${label}</td><td>${bat}</td><td>${bowl}</td></tr>`;
+}
+function comparisonCard(name, season){
+  const bat = (DATA.batting[season]||[]).find(b=>b.player===name);
+  const bowl = (DATA.bowling[season]||[]).find(b=>b.player===name);
+  const teams = season==='all' ? (PLAYER_TEAMS[name] || []) : ((PLAYER_TEAMS_BY_SEASON[season]||{})[name] || []);
+  const stat = (v,l) => `<div class="modal-stat"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  let html = `<div class="compare-card"><h4>${name}</h4>` + (teams.length ? `<p class="modal-team">${teams.join(' · ')}</p>` : '');
+  html += `<h4>Batting</h4><div class="modal-stat-grid">`+
+    stat(bat ? bat.runs : '—','Runs')+
+    stat(bat ? fmt(bat.avg) : '—','Average')+
+    stat(bat ? fmt(bat.sr) : '—','Strike Rate')+
+    stat(bat ? bat.highest : '—','High Score')+
+    stat(bat ? bat.fifties+'/'+bat.hundreds : '—','50s/100s')+
+    stat(bat ? bat.fours+'/'+bat.sixes : '—','4s/6s')+
+    `</div>`;
+  html += `<h4>Bowling</h4><div class="modal-stat-grid">`+
+    stat(bowl ? bowl.wickets : '—','Wickets')+
+    stat(bowl ? bowl.econ : '—','Economy')+
+    stat(bowl ? fmt(bowl.avg) : '—','Average')+
+    stat(bowl ? fmt(bowl.sr) : '—','Strike Rate')+
+    stat(bowl ? fmtOvers(bowl.balls) : '—','Overs')+
+    stat(bowl ? bowl.innings : '—','Innings')+
+    `</div>`;
+  html += `<h4>Phases</h4><div style="overflow-x:auto;"><table class="compare-phase-table"><thead><tr><th>Phase</th><th>Batting</th><th>Bowling</th></tr></thead><tbody>`+
+    MODAL_PHASES.map(([k,l])=>comparisonPhaseRow(l, bat?.phase?.[k], bowl?.phase?.[k])).join('')+
+    `</tbody></table></div></div>`;
+  return html;
+}
+function renderPlayerModal(){
+  const {name, names, season} = playerModalState;
+  const body = document.getElementById('playerModalBody');
+  const modalBox = document.querySelector('#playerModalOverlay .modal-box');
+  if(names && names.length===2){
+    modalBox?.classList.add('compare-mode');
+    const title = 'Player Comparison';
+    body.innerHTML = `<h3 id="playerModalTitle">${title}</h3>`+
+      `<p class="compare-intro">Side-by-side Batting, Bowling and phase performance for the selected period.</p>`+
+      `<div class="modal-period"><label for="playerModalSeason">Period</label><select id="playerModalSeason" class="filter-select" aria-label="Comparison period">${['all',...DATA.seasons].map(v=>`<option value="${v}"${v===season?' selected':''}>${v==='all'?'All-time':v}</option>`).join('')}</select></div>`+
+      `<div class="compare-grid">${names.map(n=>comparisonCard(n,season)).join('')}</div>`+
+      `<div style="display:flex;justify-content:flex-end;margin-top:14px;"><button id="compareClearModal" class="compare-clear" type="button">Clear Comparison</button></div>`;
+    const periodSelect = document.getElementById('playerModalSeason');
+    if(periodSelect) periodSelect.addEventListener('change', e=>{ playerModalState.season=e.target.value; compareSeasonContext=e.target.value; renderPlayerModal(); });
+    const clearModal = document.getElementById('compareClearModal');
+    if(clearModal) clearModal.addEventListener('click', clearComparison);
+    document.getElementById('playerModalOverlay').classList.add('open');
+    return;
+  }
+
+  modalBox?.classList.remove('compare-mode');
+  const bat = (DATA.batting[season]||[]).find(b=>b.player===name);
+  const bowl = (DATA.bowling[season]||[]).find(b=>b.player===name);
+  const teams = season==='all' ? (PLAYER_TEAMS[name] || []) : ((PLAYER_TEAMS_BY_SEASON[season]||{})[name] || []);
+  const stat = (v,l) => `<div class="modal-stat"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  const seasonRows = (kind) => (season==='all' ? DATA.seasons.map((s,i)=>['S'+(i+1)+' · '+s, DATA[kind][s].find(x=>x.player===name)]) : [[season, (DATA[kind][season]||[]).find(x=>x.player===name)]]).filter(x=>x[1]);
+  const seasonNote = (rows) => rows.length===1 ? `<p style="color:var(--muted2);font-size:12px;margin:8px 0 0;">Showing ${rows[0][0]} season data for this player.</p>` : '';
+  const cmpTable = (head, rows) => `<table class="modal-table"><thead><tr><th>Period</th>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>`+
+    rows.map(r=>`<tr><td>${r[0]}</td>${r[1].map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')+`</tbody></table>`;
+
+  let html = `<h3 id="playerModalTitle">${name}</h3>`+
+    (teams.length ? `<p class="modal-team">${teams.join(' · ')}</p>` : '')+
+    `<div class="modal-period"><label for="playerModalSeason">Period</label><select id="playerModalSeason" class="filter-select" aria-label="Player stats period">${['all',...DATA.seasons].map(v=>`<option value="${v}"${v===season?' selected':''}>${v==='all'?'All-time':v}</option>`).join('')}</select></div>`+
+    `<p style="color:var(--muted);margin:0 0 6px;font-size:12px;">${season==='all'?'Combined all-time record (both seasons)':'Season record · '+season}</p>`;
+
+  if(bat){
+    html += `<h4>Batting</h4><div class="modal-stat-grid">`+
+      stat(bat.runs,'Runs')+stat(fmt(bat.avg),'Average')+stat(fmt(bat.sr),'Strike Rate')+
+      stat(bat.highest,'High Score')+stat(bat.fifties+'/'+bat.hundreds,'50s/100s')+stat(bat.fours+'/'+bat.sixes,'4s/6s')+`</div>`;
+    html += `<h4>Batting by phase</h4><div class="modal-stat-grid">`+MODAL_PHASES.map(([k,l])=>{
+      const p = bat.phase[k];
+      return p ? stat(p.runs, `${l} · SR ${p.balls ? (p.runs/p.balls*100).toFixed(1) : '—'} · ${p.balls}b`) : stat('—', l);
+    }).join('')+`</div>`;
+    const rows = seasonRows('batting');
+    if(rows.length>1) html += `<h4>All-time vs season · batting</h4>`+cmpTable(['Inn','Runs','Avg','SR','HS'],
+      [['All-time',[bat.innings,bat.runs,fmt(bat.avg),fmt(bat.sr),bat.highest]]].concat(rows.map(([l,x])=>[l,[x.innings,x.runs,fmt(x.avg),fmt(x.sr),x.highest]])));
+    else html += seasonNote(rows);
+  }
+  if(bowl){
+    html += `<h4>Bowling</h4><div class="modal-stat-grid">`+
+      stat(bowl.wickets,'Wickets')+stat(bowl.econ,'Economy')+stat(fmt(bowl.avg),'Average')+
+      stat(fmt(bowl.sr),'Strike Rate')+stat(fmtOvers(bowl.balls),'Overs')+stat(bowl.innings,'Innings')+`</div>`;
+    html += `<h4>Bowling by phase</h4><div class="modal-stat-grid">`+MODAL_PHASES.map(([k,l])=>{
+      const p = bowl.phase[k];
+      const phaseEcon = p && p.balls >= 6 ? (p.runs / (p.balls / 6)).toFixed(2) : '—';
+      return p ? stat(p.wkts+'W', `${l} · ${fmtOvers(p.balls)} ov · Econ ${phaseEcon}`) : stat('—', l);
+    }).join('')+`</div>`;
+    const rows = seasonRows('bowling');
+    if(rows.length>1) html += `<h4>All-time vs season · bowling</h4>`+cmpTable(['Inn','Overs','Wkts','Econ','Avg'],
+      [['All-time',[bowl.innings,fmtOvers(bowl.balls),bowl.wickets,bowl.econ,fmt(bowl.avg)]]].concat(rows.map(([l,x])=>[l,[x.innings,fmtOvers(x.balls),x.wickets,x.econ,fmt(x.avg)]])));
+    else html += seasonNote(rows);
+  }
+  if(!bat && !bowl) html += `<p style="color:var(--muted);">No stats found for this player.</p>`;
+
+  body.innerHTML = html;
+  const periodSelect = document.getElementById('playerModalSeason');
+  if(periodSelect) periodSelect.addEventListener('change', e=>{ playerModalState.season=e.target.value; renderPlayerModal(); });
+  document.getElementById('playerModalOverlay').classList.add('open');
+}
+function closePlayerModal(){ document.getElementById('playerModalOverlay').classList.remove('open'); }
+
+
+// Delegated click: works for any .player-link, on any table, after any re-render.
+document.addEventListener('click', e=>{
+  const link = e.target.closest('.player-link');
+  if(link){
+    const panel = link.closest('.panel');
+    let season = 'all';
+    if(panel?.id==='panel-batting') season = battingState.season;
+    else if(panel?.id==='panel-bowling') season = bowlingState.season;
+    else if(panel?.id==='panel-h2h') season = h2hState.season;
+    else if(panel?.id==='panel-truephase') season = truePhaseState.season;
+    else if(panel?.id==='panel-scouting') season = scoutingState.season;
+    else if(panel?.id==='panel-records') season = recordsState.season;
+    else if(panel?.id==='panel-matches') season = matchesState.season;
+    else if(panel?.id==='panel-standings') season = standingsSeasonState.season;
+    else if(panel?.id==='panel-teams') season = teamProfileState.season;
+    openPlayerModal(link.dataset.player, season);
+    return;
+  }
+  if(e.target.id==='playerModalClose' || e.target.id==='playerModalOverlay') closePlayerModal();
+});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePlayerModal(); });
+document.getElementById('compareFab')?.addEventListener('click', ()=>{ if(compareList.length===2) openPlayerComparison(compareList, compareSeasonContext); });
+document.getElementById('compareClearFab')?.addEventListener('click', clearComparison);
+
+// ======================================================================
+// Scouting & Draft War Room — computed live from DATA so it never drifts
+// out of sync with the rest of the dashboard's derived metrics.
+// NEW: season toggle drives renderScouting(season) — Impact Index,
+// Powerplay Specialists and the Anchor table all recompute per season.
+// ======================================================================
+let scoutingState = {season:'all'};
+function renderScouting(season){
+  scoutingState.season = season;
+  const battingSeason = DATA.batting[season] || [];
+  const bowlingSeason = DATA.bowling[season] || [];
+  const tpSeason = DATA.phases[season] || DATA.phases.all;
+
+  // ---- 3. Impact Index — Top 5 MVPs, rendered as a breakdown table ----
+  const impactMap = impactIndexMap(season);
+  const allPlayers = Array.from(new Set([...battingSeason.map(b=>b.player), ...bowlingSeason.map(b=>b.player)]));
+  const impactTop5 = allPlayers.map(p=>{
+    const bat = battingSeason.find(b=>b.player===p);
+    const bowl = bowlingSeason.find(b=>b.player===p);
+    return {
+      // BUG FIX (data safety): a player who only has a batting record (or only
+      // a bowling record) for this season must never produce `undefined` here —
+      // every field below defaults to 0 rather than reading off a missing object.
+      player:p, impact:+((impactMap[p]||0).toFixed(1)),
+      runs: bat?bat.runs:0, wickets: bowl?bowl.wickets:0, sixes: bat?bat.sixes:0,
+      dotsBowled: bowl?bowl.dots:0, dotsFaced: bat?bat.dots:0,
+    };
+  }).sort((a,b)=>b.impact-a.impact).slice(0,5);
+
+  const impactBody = document.querySelector('#scoutImpactTable tbody');
+  impactBody.innerHTML = '';
+  impactTop5.forEach((r,i)=>{
+    const tr = el('tr');
+    tr.innerHTML = `<td class="rank">${i+1}</td><td class="pname"><span class="player-link" data-player="${r.player}">${r.player}</span></td>`+
+      `<td>${r.runs}</td><td>${r.wickets}</td><td>${r.sixes}</td><td>${r.dotsBowled}</td><td>${r.dotsFaced}</td>`+
+      `<td style="color:var(--gold);font-weight:700;">${r.impact}</td>`;
+    impactBody.appendChild(tr);
+  });
+
+  document.getElementById('scoutImpactHint').textContent = 'Impact = Runs + (Wickets×20) + (Dots Bowled×1) + (Sixes×2) − (Dots Faced×0.5). '+
+    (season==='all' ? 'All-time, both seasons' : 'Season '+season+' only')+'.';
+  csvStore.scoutImpact = { file:'npl_scouting_impact_'+slug(season),
+    head:['#','Player','Runs','Wkts','Sixes','Dots Bowled','Dots Faced','Impact Score'],
+    rows:impactTop5.map((r,i)=>[i+1,r.player,r.runs,r.wickets,r.sixes,r.dotsBowled,r.dotsFaced,r.impact]) };
+
+  // ---- 4. Powerplay specialists (min 24 PP balls, per spec) ----
+  const PP_MIN = 24;
+  const tp = tpSeason.powerplay;
+  const ppBowlers = bowlingSeason.map(b=>{
+    const p = b.phase.powerplay;
+    if(!p || p.balls < PP_MIN) return null;
+    const econ = +(p.runs/(p.balls/6)).toFixed(2);
+    return {player:b.player, econ, trueEcon:+(econ-tp.run_rate).toFixed(2), wkts:p.wkts||0, balls:p.balls};
+  }).filter(Boolean).sort((a,b)=>a.trueEcon-b.trueEcon).slice(0,3);
+
+  const ppBatters = battingSeason.map(b=>{
+    const p = b.phase.powerplay;
+    if(!p || p.balls < PP_MIN) return null;
+    const sr = +(p.runs/p.balls*100).toFixed(1);
+    const boundaryPct = pct(b.fours*4+b.sixes*6, b.runs);
+    return {player:b.player, sr, trueSR:+(sr-tp.strike_rate).toFixed(1), boundaryPct, balls:p.balls};
+  }).filter(Boolean).sort((a,b)=>b.trueSR-a.trueSR).slice(0,3);
+
+  const ppCards = document.getElementById('scoutPPCards');
+  ppCards.innerHTML = '';
+  ppBowlers.forEach(r=>ppCards.appendChild(el('div','card',
+    `<h3><span class="player-link" data-player="${r.player}">${r.player}</span> <span style="color:var(--muted2);font-size:11px;">BOWL</span></h3>`+
+    `<div class="big">${signed(r.trueEcon)}</div><div class="sub">True Econ · ${r.wkts} PP wkts in ${r.balls} balls (${r.econ} econ)</div>`)));
+  ppBatters.forEach(r=>ppCards.appendChild(el('div','card',
+    `<h3><span class="player-link" data-player="${r.player}">${r.player}</span> <span style="color:var(--muted2);font-size:11px;">BAT</span></h3>`+
+    `<div class="big">${signed(r.trueSR)}</div><div class="sub">True SR · ${r.boundaryPct}% boundary runs (${r.sr} SR)</div>`)));
+
+  // ---- 5. Anchor evaluation — >50 balls, Dot% < 35%, Boundary% < 50% ----
+  // BUG FIX ("Undismissed"): a player who was never dismissed has dismissals===0,
+  // and avg may come through as null. That must be read as the ULTIMATE wicket
+  // protector — checked BEFORE the avg>=25 test — otherwise a perfect record
+  // (never out) gets misread as a "Failed Anchor" because `null >= 25` is false.
+  const anchors = battingSeason.filter(b=>{
+    const dotPct = pct(b.dots, b.balls);
+    const boundaryPct = pct(b.fours*4+b.sixes*6, b.runs);
+    return b.balls > 50 && dotPct < 35 && boundaryPct < 50;
+  }).map(b=>{
+    const dotPct = pct(b.dots, b.balls);
+    const boundaryPct = pct(b.fours*4+b.sixes*6, b.runs);
+    let read, isProtector;
+    if(b.dismissals === 0 || b.avg === null){
+      read = 'Elite — Never Dismissed (Ultimate Wicket Protector)';
+      isProtector = true;
+    } else if(b.avg >= 25){
+      read = 'Wicket Protector';
+      isProtector = true;
+    } else {
+      read = 'Failed Anchor';
+      isProtector = false;
+    }
+    return {...b, dotPct, boundaryPct, read, isProtector};
+  }).sort((a,b)=>{
+    if(b.isProtector !== a.isProtector) return b.isProtector - a.isProtector;
+    if(a.avg === null && b.avg === null) return b.runs - a.runs;
+    if(a.avg === null) return -1;
+    if(b.avg === null) return 1;
+    return b.avg - a.avg;
+  });
+
+  const anchorBody = document.querySelector('#scoutAnchorTable tbody');
+  anchorBody.innerHTML = '';
+  csvStore.scoutAnchor = { file:'npl_scouting_anchors_'+slug(season),
+    head:['Player','Avg','SR','Dot%','Boundary%','Dismissals','Read'],
+    rows:anchors.map(r=>[r.player,r.avg,r.sr,r.dotPct,r.boundaryPct,r.dismissals,r.read]) };
+  if(!anchors.length){ anchorBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--muted2);">No anchor qualifiers found for this season</td></tr>'; }
+  anchors.forEach(r=>{
+    const tr = el('tr');
+    tr.innerHTML = `<td class="pname"><span class="player-link" data-player="${r.player}">${r.player}</span> `+
+      `<span class="badge ${r.isProtector?'badge-anchor':'badge-struggler'}">${r.isProtector?'Protector':'Struggler'}</span></td>`+
+      `<td>${fmt(r.avg)}</td><td>${r.sr}</td><td>${r.dotPct}%</td><td>${r.boundaryPct}%</td><td>${r.dismissals}</td>`+
+      `<td style="text-align:left;color:var(--muted);font-size:12px;">${r.read}</td>`;
+    anchorBody.appendChild(tr);
+  });
+
+  // ---- Venue & toss strategy (live-pulled numbers, gold blueprint card) ----
+  // Stays all-time regardless of the season toggle above — a single
+  // season's sample of toss/venue outcomes is too small to slice usefully.
+  const venue = DATA.venues[0];
+  const t = DATA.toss_impact;
+  const ph = DATA.phases.all;
+  const rec = t.decision_field_winrate > t.decision_bat_winrate ? 'field first' : 'bat first';
+  document.getElementById('scoutVenueCard').innerHTML =
+    `<h3>${venue ? venue.venue : 'Venue'} — Tactical Blueprint</h3>`+
+    `<div class="modal-stat-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px;">`+
+      `<div class="modal-stat"><div class="v">${t.decision_field_winrate}%</div><div class="l">Win rate choosing to field (${t.decision_field_count} matches)</div></div>`+
+      `<div class="modal-stat"><div class="v">${t.decision_bat_winrate}%</div><div class="l">Win rate choosing to bat (${t.decision_bat_count} matches)</div></div>`+
+      `<div class="modal-stat"><div class="v">${venue?venue.chase_wins:'—'}</div><div class="l">Chase wins</div></div>`+
+      `<div class="modal-stat"><div class="v">${venue?venue.bat_first_wins:'—'}</div><div class="l">Bat-first wins</div></div>`+
+    `</div>`+
+    `<p style="color:var(--muted);font-size:13px;line-height:1.6;">Scoring accelerates sharply through the innings here — `+
+    `${ph.powerplay.run_rate} rpo in the powerplay, ${ph.middle.run_rate} rpo in the middle overs, and `+
+    `<b style="color:var(--ink)">${ph.death.run_rate} rpo at the death</b>. Combined with the toss-decision split above, `+
+    `the data favors a captain choosing to <b style="color:var(--gold)">${rec}</b> on winning the toss — `+
+    `chasing sides know their target and can play the death-overs acceleration with intent, rather than setting a total blind on a pitch that only gets easier to score on.</p>`;
+}
+buildSeg('scoutingSeasonSeg', [{label:'All-time',value:'all'}].concat(DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1)+' · '+s,value:s}))), renderScouting);
+renderScouting('all');
+
+// ======================================================================
+// NEW: Manual theme toggle — wires up the button that was previously
+// unwired (CSS + markup existed, but no click handler). Toggling sets
+// data-theme="light"/"dark" on <html>, overriding the system preference
+// in either direction; the choice is remembered across visits.
+// ======================================================================
+(function(){
+  const root = document.documentElement;
+  const btn = document.getElementById('themeToggle');
+  if(!btn) return;
+  const STORAGE_KEY = 'npl-theme';
+  function systemTheme(){
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+  function applyIcon(theme){
+    btn.textContent = theme === 'light' ? '☀️' : '🌙';
+  }
+  let theme = localStorage.getItem(STORAGE_KEY);
+  if(theme === 'light' || theme === 'dark'){
+    root.setAttribute('data-theme', theme);
+  } else {
+    theme = systemTheme(); // reflect system default without forcing an override yet
+  }
+  applyIcon(theme);
+  btn.addEventListener('click', () => {
+    theme = theme === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', theme);
+    try { localStorage.setItem(STORAGE_KEY, theme); } catch(e) {}
+    applyIcon(theme);
+    rerenderStandingsChart();   // destroy + rebuild Chart.js with the new palette
+  });
+  // follow OS theme changes too, while no manual choice is stored
+  if(window.matchMedia){
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const onSys = () => { if(!root.hasAttribute('data-theme')){ theme = systemTheme(); applyIcon(theme); rerenderStandingsChart(); } };
+    if(mq.addEventListener) mq.addEventListener('change', onSys);
+  }
+})();
+
+// ======================================================================
+// Team Profiles: standings snapshot + top-5 batters / bowlers per team
+// ======================================================================
+const teamProfileState = { team: null, season: DATA.seasons[0] };
+function teamSnapshot(team, season){
+  const pick = s => { const rows = computeStandings(s); const i = rows.findIndex(r=>r.team===team); return i<0 ? null : {row:rows[i], rank:i+1, of:rows.length}; };
+  if(season!=='all') return pick(season);
+  const parts = DATA.seasons.map(pick).filter(Boolean);
+  if(!parts.length) return null;
+  const sum = k => parts.reduce((a,p)=>a+p.row[k],0);
+  const row = { played:sum('played'), won:sum('won'), lost:sum('lost'), tied:sum('tied'), nr:sum('nr'), pts:sum('pts') };
+  const rf=sum('runsFor'), of=sum('oversFor'), ra=sum('runsAgainst'), oa=sum('oversAgainst');
+  row.nrr = +(((of?rf/of:0) - (oa?ra/oa:0)).toFixed(3));
+  return { row, rank:null, of:null };
+}
+function renderTeamProfile(){
+  const { team, season } = teamProfileState;
+  const box = document.getElementById('teamProfile');
+  if(!team){ box.innerHTML=''; return; }
+  const snap = teamSnapshot(team, season);
+  const ctx = season==='all' ? 'All-time, both seasons' : 'Season '+season;
+  const card = (l,v,sub) => `<div class="card"><h3>${l}</h3><div class="big num">${v}</div><div class="sub">${sub}</div></div>`;
+  const r = snap ? snap.row : null;
+  const link = n => `<span class="player-link" data-player="${n}">${n}</span>`;
+  const bat = DATA.batting[season].filter(x=>playerInTeam(x.player, team, season)).sort((a,b)=>b.runs-a.runs).slice(0,5);
+  const bowl = DATA.bowling[season].filter(x=>playerInTeam(x.player, team, season)).sort((a,b)=>b.wickets-a.wickets || a.econ-b.econ).slice(0,5);
+  const empty = n => `<tr><td colspan="${n}" style="text-align:center; padding:20px; color:var(--muted2);">No players found</td></tr>`;
+  box.innerHTML =
+    `<div class="team-hero"><h2>${team}</h2><div class="sub">${ctx}${snap && snap.rank ? ' · #'+snap.rank+' of '+snap.of+' in the league table' : ''}</div></div>`+
+    (r ? `<div class="card-grid">${card('Matches',r.played,'league stage')}${card('Wins',r.won,r.pts+' points')}${card('Losses',r.lost,(r.tied+r.nr)?(r.tied+' tied · '+r.nr+' no result'):'')}${card('NRR',signed(r.nrr),'net run rate')}</div>`
+       : `<p class="hint">No league matches for this team in this view.</p>`)+
+    `<div class="teams-split">`+
+      `<div><h2 class="section-title">Top 5 run scorers</h2><div class="table-scroll" style="max-height:none;"><table><thead><tr><th>#</th><th>Player</th><th>Runs</th><th>Avg</th><th>SR</th></tr></thead><tbody>`+
+        (bat.length ? bat.map((x,i)=>`<tr><td class="rank">${i+1}</td><td class="pname">${link(x.player)}</td><td>${x.runs}</td><td>${fmt(x.avg)}</td><td>${fmt(x.sr)}</td></tr>`).join('') : empty(5))+
+      `</tbody></table></div></div>`+
+      `<div><h2 class="section-title">Top 5 wicket takers</h2><div class="table-scroll" style="max-height:none;"><table><thead><tr><th>#</th><th>Player</th><th>Wkts</th><th>Econ</th><th>Avg</th></tr></thead><tbody>`+
+        (bowl.length ? bowl.map((x,i)=>`<tr><td class="rank">${i+1}</td><td class="pname">${link(x.player)}</td><td>${x.wickets}</td><td>${fmt(x.econ)}</td><td>${fmt(x.avg)}</td></tr>`).join('') : empty(5))+
+      `</tbody></table></div></div>`+
+    `</div>`;
+}
+(function initTeamProfiles(){
+  const teams = Array.from(new Set(DATA.matches.flatMap(m=>[m.team1,m.team2]))).sort();
+  const sel = document.getElementById('teamProfileSelect');
+  teams.forEach(t=>{ const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
+  teamProfileState.team = teams[0];
+  sel.addEventListener('change', ()=>{ teamProfileState.team = sel.value; renderTeamProfile(); });
+  buildSeg('teamSeasonSeg', DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1)+' · '+s,value:s})), v=>{ teamProfileState.season = v; renderTeamProfile(); });
+  renderTeamProfile();
+})();
+
+// ======================================================================
+// Match Center: every match of a season, oldest to newest, native HTML/CSS.
+// ======================================================================
+const matchesState = { season: DATA.seasons[0] };
+function renderMatches(season){
+  matchesState.season = season;
+  const grid = document.getElementById('matchesGrid');
+  if(!grid) return;
+  const ms = DATA.matches.filter(m=>m.season===season)
+    .sort((a,b)=> a.date.localeCompare(b.date) || (a.match_number||0)-(b.match_number||0));
+  if(!ms.length){ grid.innerHTML = '<p class="hint">No matches for this season.</p>'; return; }
+  grid.innerHTML = ms.map(m=>{
+    const innings = DATA.innings_summary.filter(i=>i.match_id===m.match_id && i.innings<=2).sort((a,b)=>a.innings-b.innings);
+    const date = new Date(m.date+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    const isFinal = m.stage==='Final';
+    const wc = isFinal ? 'var(--gold)' : 'var(--green-glow)';
+    const rows = innings.map(i=>`<div class="playoff-team${i.batting_team===m.winner?' win':''}" style="--wc:${wc}"><span>${i.batting_team}</span><span class="sc">${i.runs}/${i.wickets}<small>${fmtOvers(i.legal_balls)} ov</small></span></div>`).join('')
+      || '<div class="playoff-seed">Scorecard summary unavailable</div>';
+    const potm = m.player_of_match ? `<div class="playoff-potm">POTM · <span class="player-link" data-player="${String(m.player_of_match).replace(/"/g,'&quot;')}">${m.player_of_match}</span></div>` : '';
+    return `<div class="playoff-card${isFinal?' playoff-final':''}">`+
+      `<div class="playoff-head"><span class="stage-badge">${m.stage}</span><span class="playoff-date">${date}</span></div>`+
+      rows+`<div class="playoff-result">${h2hResultText(m)}${potm}</div></div>`;
+  }).join('');
+}
+buildSeg('matchesSeasonSeg', DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1)+' · '+s,value:s})), v=>renderMatches(v));
+renderMatches(DATA.seasons[0]);
+
+// ======================================================================
+// Tournament Records: top-3 lists in native HTML/CSS (no canvas).
+// ======================================================================
+const recordsState = { season:'all' };
+function renderRecords(season){
+  recordsState.season = season;
+  const grid = document.getElementById('recordsGrid');
+  if(!grid) return;
+  const link = n => `<span class="player-link" data-player="${String(n).replace(/"/g,'&quot;')}">${n}</span>`;
+  const top3 = (rows, cmp) => rows.slice().sort(cmp).slice(0,3);
+  const rowHtml = (i, left, right, sub) =>
+    `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-top:1px solid var(--border);">`+
+    `<div><span style="color:var(--muted2);margin-right:8px;">${i+1}.</span>${left}${sub?`<div class="sub" style="margin-left:22px;">${sub}</div>`:''}</div>`+
+    `<div style="color:var(--gold);font-weight:700;white-space:nowrap;">${right}</div></div>`;
+  const card = (title, rows) =>
+    `<div class="card"><h3>${title}</h3>${rows.length ? rows.join('') : '<div class="sub">No data for this selection.</div>'}</div>`;
+
+  const inns = DATA.innings_summary.filter(i => i.innings<=2 && (season==='all' || i.season===season));
+  const teamRows = top3(inns, (a,b)=>b.runs-a.runs)
+    .map((r,i)=>rowHtml(i, r.batting_team, `${r.runs}/${r.wickets}`, `vs ${r.bowling_team} · ${r.season}`));
+
+  const bat = DATA.batting[season] || [];
+  const hsRows = top3(bat.filter(r=>r.highest!=null), (a,b)=>(b.highest-a.highest) || (b.runs-a.runs))
+    .map((r,i)=>rowHtml(i, link(r.player), r.highest, `${r.runs} runs in ${r.innings} innings`));
+  const sixRows = top3(bat.filter(r=>r.sixes!=null), (a,b)=>(b.sixes-a.sixes) || (b.runs-a.runs))
+    .map((r,i)=>rowHtml(i, link(r.player), r.sixes, `${r.innings} innings`));
+
+  const bowl = (DATA.bowling[season] || []).filter(r=>r.balls>=60 && r.econ!=null);
+  const econRows = top3(bowl, (a,b)=>(a.econ-b.econ) || (b.wickets-a.wickets))
+    .map((r,i)=>rowHtml(i, link(r.player), r.econ.toFixed(2), `${fmtOvers(r.balls)} ov · ${r.wickets} wkts`));
+
+  grid.innerHTML =
+    card('Highest Team Totals', teamRows) +
+    card('Highest Individual Scores', hsRows) +
+    card('Most Tournament Sixes', sixRows) +
+    card('Best Bowling Economy <span class="sub">(min 10 overs)</span>', econRows);
+}
+buildSeg('recordsSeasonSeg', [{label:'All-time',value:'all'}].concat(DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1)+' · '+s,value:s}))), v=>renderRecords(v));
+renderRecords('all');
+
+}
+
+loadNPLData();
+</script>
+  <!-- NEW: Player stat modal (single shared instance, filled by openPlayerModal) -->
+  <div id="playerModalOverlay" class="modal-overlay">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="playerModalTitle">
+      <button id="playerModalClose" class="modal-close" aria-label="Close">✕</button>
+      <div id="playerModalBody"></div>
+    </div>
+  </div>
+
+</body>
+</html>
