@@ -9,6 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
 <!-- NEW: Chart.js for the Standings bar chart -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<!-- Fallback chain: if the cdnjs copy is blocked/404s, `Chart` is undefined and every chart silently stays a blank box.
+     Each line runs only if the previous host failed, and blocks parsing so `Chart` exists before the app script runs. -->
+<script>window.Chart || document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"><\/script>');</script>
+<script>window.Chart || document.write('<script src="https://unpkg.com/chart.js@4.4.4/dist/chart.umd.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
 :root{
@@ -119,6 +123,8 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
 
 /* NEW: standings chart container */
 .chart-box{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:16px; height:220px; position:relative;}
+/* Shown inside a chart-box when a chart cannot be drawn (library missing / no data) so the box is never just a blank rectangle. */
+.chart-msg{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:16px; text-align:center; color:var(--muted); font-size:13px; pointer-events:none;}
 
 /* NEW: player modal */
 .modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:50; align-items:center; justify-content:center; padding:20px;}
@@ -265,12 +271,13 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
   #scoutImpactTable th:nth-child(-n+2){background:var(--surface2);}
   #battingTable td:nth-child(2), #battingTable th:nth-child(2),
   #bowlingTable td:nth-child(2), #bowlingTable th:nth-child(2),
-  #scoutImpactTable td:nth-child(2), #scoutImpactTable th:nth-child(2){left:28px;}
+  #scoutImpactTable td:nth-child(2), #scoutImpactTable th:nth-child(2){left:42px;}
   #battingTable th:nth-child(1), #battingTable th:nth-child(2), #bowlingTable th:nth-child(1), #bowlingTable th:nth-child(2),
   #scoutImpactTable th:nth-child(1), #scoutImpactTable th:nth-child(2){z-index:4;}
   #truePhaseTable td:first-child, #truePhaseTable th:first-child { position: sticky; left: 0; z-index: 2; background: var(--surface); min-width: 120px; }
   #truePhaseTable th:first-child { background: var(--surface2); z-index: 4; }
 }
+
 </style>
 </head>
 <body>
@@ -334,22 +341,22 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
   <div class="panel" id="panel-batting">
     <div class="controls">
       <div class="seg" id="battingSeasonSeg"></div>
-      <input class="search-input" id="battingSearch" placeholder="Search player…">
+      <input class="search-input" id="battingSearch" placeholder="Search player…" aria-label="Search batters">
       <!-- NEW: Archetype + Volume filters -->
-      <select class="filter-select" id="battingArchetypeFilter">
+      <select class="filter-select" id="battingArchetypeFilter" aria-label="Filter by archetype">
         <option value="all">All archetypes</option>
         <option value="Anchor">Anchor</option>
         <option value="Power">Power</option>
         <option value="Struggler">Struggler</option>
       </select>
-      <select class="filter-select" id="battingVolumeFilter">
+      <select class="filter-select" id="battingVolumeFilter" aria-label="Minimum balls faced">
         <option value="0">All (any balls)</option>
         <option value="25">Min 25 balls</option>
         <option value="50">Min 50 balls</option>
         <option value="100">Min 100 balls</option>
       </select>
       <!-- NEW: Team filter — restricts the table to players who appeared for the selected team's official lineup -->
-      <select class="filter-select" id="battingTeamFilter">
+      <select class="filter-select" id="battingTeamFilter" aria-label="Filter by team">
         <option value="all">All teams</option>
       </select>
       <div class="seg"><button data-export="batting">Export CSV</button></div>
@@ -358,7 +365,7 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
       <table id="battingTable">
         <thead><tr>
           <th data-key="rank">#</th><th data-key="player">Player</th><th data-key="innings">Inn</th>
-          <th data-key="runs">Runs</th><th data-key="avg">Avg</th><th data-key="sr">SR</th>
+          <th data-key="runs">Runs</th><th data-key="avg" title="Runs per dismissal. Shown as — when the batter was never dismissed.">Avg</th><th data-key="sr">SR</th>
           <th data-key="highest">HS</th><th data-key="fours">4s</th><th data-key="sixes">6s</th>
           <th data-key="fifties">50s</th><th data-key="hundreds">100s</th>
           <!-- NEW: dot ball %, boundary-runs %, balls-per-boundary -->
@@ -375,19 +382,19 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
   <div class="panel" id="panel-bowling">
     <div class="controls">
       <div class="seg" id="bowlingSeasonSeg"></div>
-      <input class="search-input" id="bowlingSearch" placeholder="Search player…">
+      <input class="search-input" id="bowlingSearch" placeholder="Search player…" aria-label="Search bowlers">
       <!-- NEW: Overs + Phase filters -->
-      <select class="filter-select" id="bowlingOversFilter">
+      <select class="filter-select" id="bowlingOversFilter" aria-label="Minimum overs bowled">
         <option value="0">All (any overs)</option>
         <option value="10">Min 10 overs</option>
         <option value="20">Min 20 overs</option>
       </select>
-      <select class="filter-select" id="bowlingPhaseFilter">
+      <select class="filter-select" id="bowlingPhaseFilter" aria-label="Filter by phase">
         <option value="all">All phases</option>
         <option value="pp">Powerplay specialists (min 4 PP overs)</option>
       </select>
       <!-- NEW: Team filter — restricts the table to players who appeared for the selected team's official lineup -->
-      <select class="filter-select" id="bowlingTeamFilter">
+      <select class="filter-select" id="bowlingTeamFilter" aria-label="Filter by team">
         <option value="all">All teams</option>
       </select>
       <div class="seg"><button data-export="bowling">Export CSV</button></div>
@@ -441,7 +448,7 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
     <div class="card-grid" id="tossCards"></div>
 
     <h2 class="section-title">Scoring by phase</h2>
-    <p class="hint">Run rate: Powerplay (overs 1–6) · Middle (7–15) · Death (16–20), across all matches.</p>
+    <p class="hint" id="phaseHint"></p>
     <div id="phaseBars"></div>
   </div>
 
@@ -450,8 +457,8 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
     <div class="controls">
       <div class="seg" id="truePhaseTypeSeg"></div>
       <div class="seg" id="truePhaseSeasonSeg"></div>
-      <input class="search-input" id="truePhaseSearch" placeholder="Search player…">
-      <select class="filter-select" id="truePhaseTeamFilter">
+      <input class="search-input" id="truePhaseSearch" placeholder="Search player…" aria-label="Search players">
+      <select class="filter-select" id="truePhaseTeamFilter" aria-label="Filter by team">
         <option value="all">All teams</option>
       </select>
       <div class="seg"><button data-export="truephase">Export CSV</button></div>
@@ -491,7 +498,7 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
 
   <div class="panel" id="panel-scouting">
     <!-- NEW: Season toggle — Scouting War Room recalculates for the selected season -->
-    <div class="controls">
+    <div class="controls" data-html2canvas-ignore="true">
       <div class="seg" id="scoutingSeasonSeg"></div>
       <div class="seg"><button data-export="scoutImpact">Export MVPs CSV</button></div>
       <div class="seg"><button data-export="scoutAnchor">Export Anchors CSV</button></div>
@@ -536,19 +543,38 @@ tbody tr:nth-child(-n+4).qualify td:first-child{box-shadow:inset 3px 0 0 var(--g
 <script>
 let DATA, PLAYER_TEAMS, PLAYER_TEAMS_BY_SEASON;
 
+function showFatal(title, detail){
+  const box = document.createElement('div');
+  box.setAttribute('role','alert');
+  box.style.cssText = 'padding:24px 28px;margin:20px;border:1px solid #C1443C;border-radius:10px;color:#C1443C;background:rgba(193,68,60,.08);font-family:sans-serif;';
+  const h = document.createElement('h2'); h.style.margin = '0 0 8px'; h.textContent = title;
+  const p = document.createElement('p'); p.style.margin = '0'; p.textContent = detail;
+  box.appendChild(h); box.appendChild(p);
+  document.body.prepend(box);
+}
 async function loadNPLData() {
+  let json;
   try {
     const response = await fetch('npl_data.json');
-    if (!response.ok) throw new Error('Failed to load tournament data');
-    const json = await response.json();
-    DATA = json.DATA;
-    PLAYER_TEAMS = json.PLAYER_TEAMS;
-    PLAYER_TEAMS_BY_SEASON = json.PLAYER_TEAMS_BY_SEASON;
-
+    if (!response.ok) throw new Error('npl_data.json returned HTTP ' + response.status);
+    json = await response.json();
+    if (!json || !json.DATA) throw new Error('npl_data.json is missing the "DATA" object');
+  } catch (err) {
+    console.error(err);
+    showFatal('Error Loading Dashboard Data', err.message + '. Make sure npl_data.json sits next to index.html and that the page is served over http(s) (e.g. GitHub Pages or Live Server), not opened as a file.');
+    return;
+  }
+  DATA = json.DATA;
+  PLAYER_TEAMS = json.PLAYER_TEAMS || {};
+  PLAYER_TEAMS_BY_SEASON = json.PLAYER_TEAMS_BY_SEASON || {};
+  // A batter who was never dismissed has no batting average (runs / 0). The data file stores runs
+  // in that field, which inflates Avg sorting and leaderboards; treat it as "not available".
+  ['all'].concat(DATA.seasons).forEach(k => (DATA.batting[k] || []).forEach(b => { if(!b.dismissals) b.avg = null; }));
+  try {
     initializeApp();
   } catch (err) {
     console.error(err);
-    document.body.innerHTML = `<div style="padding:40px;color:#C1443C;font-family:sans-serif;"><h2>Error Loading Dashboard Data</h2><p>${err.message}. Make sure you are running a local development server (e.g., Live Server) to support fetch requests.</p></div>`;
+    showFatal('Something went wrong while building the dashboard', err.message + ' — see the browser console for details.');
   }
 }
 
@@ -559,6 +585,7 @@ try{ const t = localStorage.getItem('npl-theme'); if(t==='light' || t==='dark') 
 // ---------- generic helpers ----------
 function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
 function fmt(v){ return (v===null||v===undefined) ? '—' : v; }
+function f2(v){ return (v===null||v===undefined||!Number.isFinite(Number(v))) ? '—' : Number(v).toFixed(2); }
 function pct(n,d){ return d ? +(n/d*100).toFixed(1) : 0; }
 function signed(n){ return Number.isFinite(Number(n)) ? (n>0?'+':'') + n : '—'; }
 const STRING_KEYS = new Set(['player']);      // sort with localeCompare
@@ -581,11 +608,19 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
-    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    const targetPanel = document.getElementById('panel-'+btn.dataset.tab);
+    if (targetPanel) targetPanel.classList.add('active');
     // BUG FIX (0x0 canvas): flush any chart render that was skipped while hidden.
-    if(btn.dataset.tab==='standings' && pendingStandingsRows){
-      renderStandingsChart(pendingStandingsRows);
-      pendingStandingsRows = null;
+    if(btn.dataset.tab==='standings'){
+      if(pendingStandingsRows){
+        const rows = pendingStandingsRows; pendingStandingsRows = null;
+        renderStandingsChart(rows);
+      } else if(standingsChartInstance){
+        // Panel just became visible: let the browser lay it out, then re-measure the (already built) chart.
+        requestAnimationFrame(() => resizeLiveChart(standingsChartInstance));
+      } else if(lastStandingsRows){
+        renderStandingsChart(lastStandingsRows);       // e.g. an earlier render was skipped
+      }
     }
   });
 });
@@ -661,7 +696,7 @@ function markSorted(tableId, key, dir){
 const emptyRow = n => `<tr><td colspan="${n}" style="text-align:center; padding:20px; color:var(--muted2);">No players found matching filters</td></tr>`;
 // Team filter: season views use that season's lineup; All-time falls back to the global roster map.
 const playerInTeam = (player, team, season) =>
-  season==='all' ? (PLAYER_TEAMS[player]||[]).includes(team) : ((PLAYER_TEAMS_BY_SEASON[season]||{})[player]||[]).includes(team);
+  season==='all' ? (PLAYER_TEAMS?.[player]||[]).includes(team) : ((PLAYER_TEAMS_BY_SEASON?.[season]||{})[player]||[]).includes(team);
 const fmtOvers = balls => `${Math.floor(balls / 6)}.${balls % 6}`;   // cricket notation: 4 balls -> 0.4, 14 -> 2.2
 const TEAM_ABBR = {'Biratnagar Kings':'BIR','Janakpur Bolts':'JAN','Kathmandu Gorkhas':'KTH','Chitwan Rhinos':'CHW','Karnali Yaks':'KAR','Lumbini Lions':'LUM','Pokhara Avengers':'POK','Sudurpaschim Royals':'SUD'};
 const abbr = t => TEAM_ABBR[t] || t.slice(0,3).toUpperCase();
@@ -672,6 +707,7 @@ const teamBadges = (name, season) => {
   return teams.map(t=>`<span class="h2h-pill" title="${t}">${abbr(t)}</span>`).join(' ');
 };
 const slug = s => s==='all' ? 'all-time' : String(s).replace('/','-');
+
 
 // ---------- CSV export: every render stores its filtered + sorted view ----------
 const csvStore = {};
@@ -688,7 +724,8 @@ function exportCSV(key){
 }
 function exportScoutPDF() {
   const element = document.getElementById('panel-scouting');
-  if(!element || typeof html2pdf === 'undefined') return;
+  if(!element) return;
+  if(typeof html2pdf === 'undefined'){ alert('The PDF library could not be loaded (check your connection or ad-blocker), so the report cannot be exported.'); return; }
   const wasActive = element.classList.contains('active');
   const previousActive = document.querySelector('.panel.active');
   element.classList.add('active');
@@ -696,7 +733,7 @@ function exportScoutPDF() {
     margin:       10,
     filename:     'npl-scouting-war-room-report.pdf',
     image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, useCORS: true },
+    html2canvas:  { scale: 2, useCORS: true, backgroundColor: getComputedStyle(document.body).backgroundColor },
     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
   const restore = () => {
@@ -730,7 +767,7 @@ function impactIndexMap(season){
 // i.innings <= 2 — super-over innings (3 & 4) must never count toward NRR.
 // ======================================================================
 function computeStandings(season){
-  const leagueIds = new Set(DATA.matches.filter(m=>m.season===season && m.match_number!=null).map(m=>m.match_id));
+  const leagueIds = new Set(DATA.matches.filter(m=>m.season===season && m.match_number!=null && (!m.stage || /league/i.test(String(m.stage)))).map(m=>m.match_id));
   const teams = {};
   const ensure = t => teams[t] || (teams[t] = {team:t,played:0,won:0,lost:0,tied:0,nr:0,pts:0,
     runsFor:0,oversFor:0,runsAgainst:0,oversAgainst:0,
@@ -795,14 +832,14 @@ function renderLeaders(season){
   const card = (color,label,name,big,sub) => `<div class="card"><h3>${dot(color)}${label}</h3><div class="pname" style="font-size:17px;">${link(name)} ${teamBadges(name, season)}</div><div class="big num">${big}</div><div class="sub">${sub}</div></div>`;
   const box = document.getElementById('leadersStrip');
   box.innerHTML = (bat ? card('#E8892A','Orange Cap · Top Run Scorer',bat.player,bat.runs,'runs · avg '+fmt(bat.avg)) : '')+
-    (bowl ? card('#8E5BD6','Purple Cap · Top Wicket Taker',bowl.player,bowl.wickets,'wickets · econ '+bowl.econ) : '')+
+    (bowl ? card('#8E5BD6','Purple Cap · Top Wicket Taker',bowl.player,bowl.wickets,'wickets · econ '+f2(bowl.econ)) : '')+
     (mvp ? card('var(--gold)','Tournament MVP · Impact Leader',mvp[0],(+mvp[1].toFixed(1)),'impact score') : '');
 }
 // Last 5 completed matches for a team in the season (league + playoffs), oldest -> newest.
 function formOf(team, season){
   return DATA.matches
     .filter(m=>m.season===season && m.match_number!=null && (m.team1===team || m.team2===team) && (m.winner || m.result))
-    .sort((a,b)=>a.date.localeCompare(b.date) || a.match_id.localeCompare(b.match_id))
+    .sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')) || String(a.match_id||'').localeCompare(String(b.match_id||'')))
     .slice(-5)
     .map(m=> m.winner ? (m.winner===team ? 'W' : 'L') : (m.result==='no result' ? 'NR' : 'T'));
 }
@@ -860,39 +897,89 @@ function renderStandings(season){
 let standingsChartInstance = null;
 let pendingStandingsRows = null;
 let lastStandingsRows = null;
+let standingsRenderToken = 0;          // invalidates a queued (layout-waiting) render when a newer one starts
 // Reads the live CSS variables so the chart follows data-theme (or the system preference).
 function chartPalette(){
   const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
   return { red: v('--red'), ink: v('--ink'), muted: v('--muted'), border: v('--border'), gold: v('--gold'), green: v('--green-glow') };
 }
+// ---- shared chart lifecycle helpers ----
+const chartsAvailable = () => typeof Chart !== 'undefined';
+// Chart.js throws "Canvas is already in use" if two code paths race; always release whatever owns the canvas first.
+function destroyChartOn(canvas){
+  const existing = (canvas && chartsAvailable() && typeof Chart.getChart === 'function') ? Chart.getChart(canvas) : null;
+  if(existing) existing.destroy();
+}
+// Show (or clear, when msg is falsy) a message inside a chart-box so a chart that cannot render never looks like a blank rectangle.
+function setChartMessage(box, msg){
+  if(!box) return;
+  let m = box.querySelector(':scope > .chart-msg');
+  if(!msg){ if(m) m.remove(); return; }
+  if(!m){ m = document.createElement('div'); m.className = 'chart-msg'; m.setAttribute('role','status'); box.appendChild(m); }
+  m.textContent = msg;
+}
+// Run cb once `el` has a real size. A chart built against a 0x0 (still-hidden / not-yet-laid-out) box never recovers,
+// so wait frame-by-frame (bounded) instead of guessing with a fixed timeout.
+function whenLaidOut(el, cb, tries){
+  if(tries === undefined) tries = 30;
+  const r = el.getBoundingClientRect();
+  if((r.width > 0 && r.height > 0) || tries <= 0){ cb(); return; }
+  requestAnimationFrame(() => whenLaidOut(el, cb, tries - 1));
+}
+// Re-measure a live chart, but only while its container is actually visible (resizing a hidden chart would collapse it to 0x0).
+function resizeLiveChart(chart){
+  if(!chart || !chart.canvas || !chart.canvas.isConnected) return;
+  const box = chart.canvas.parentElement, r = box && box.getBoundingClientRect();
+  if(r && r.width > 0 && r.height > 0) chart.resize();
+}
+let liveResizeRaf = 0;
+function resizeLiveCharts(){
+  cancelAnimationFrame(liveResizeRaf);
+  liveResizeRaf = requestAnimationFrame(() => { resizeLiveChart(standingsChartInstance); resizeLiveChart(compareChartInstance); });
+}
+window.addEventListener('resize', resizeLiveCharts);
+window.addEventListener('orientationchange', resizeLiveCharts);
+
 function renderStandingsChart(rows){
   const canvas = document.getElementById('standingsChart');
   const panel = document.getElementById('panel-standings');
-  if(!canvas || typeof Chart === 'undefined') return;
+  if(!canvas || !panel) return;
+  const box = canvas.parentElement;
   lastStandingsRows = rows;
+  const token = ++standingsRenderToken;
   if(standingsChartInstance){ standingsChartInstance.destroy(); standingsChartInstance = null; }
-  if(!panel.classList.contains('active')){ pendingStandingsRows = rows; return; }
-  const pal = chartPalette();
-  const axisTitle = t => ({display:true, text:t, color:pal.muted});
-  standingsChartInstance = new Chart(canvas.getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: rows.map(r=>r.team),
-      datasets: [
-        { label:'Points', data:rows.map(r=>r.pts), backgroundColor:pal.gold, yAxisID:'y', borderRadius:3 },
-        { label:'NRR', data:rows.map(r=>r.nrr), backgroundColor:rows.map(r=>r.nrr>=0 ? pal.green : pal.red), yAxisID:'y1', borderRadius:3 },
-      ]
-    },
-    options: {
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{ color:pal.ink } } },
-      scales:{
-        x:{ ticks:{ color:pal.muted, maxRotation:60, minRotation:30, font:{size:10} }, grid:{ color:pal.border }, border:{ color:pal.border } },
-        y:{ position:'left', title:axisTitle('Points'), ticks:{ color:pal.muted }, grid:{ color:pal.border }, border:{ color:pal.border } },
-        y1:{ position:'right', title:axisTitle('NRR'), ticks:{ color:pal.muted }, grid:{ drawOnChartArea:false }, border:{ color:pal.border } },
+  pendingStandingsRows = null;
+  if(!chartsAvailable()){ setChartMessage(box, 'Chart unavailable: the Chart.js library could not be loaded. The standings table below is unaffected.'); return; }
+  destroyChartOn(canvas);
+  if(!rows || !rows.length){ setChartMessage(box, 'No standings data for this selection.'); return; }
+  if(!panel.classList.contains('active')){ pendingStandingsRows = rows; return; }   // built when the tab becomes active
+  setChartMessage(box, null);
+  whenLaidOut(box, () => {
+    if(token !== standingsRenderToken || !canvas.isConnected) return;               // superseded by a newer render
+    if(!panel.classList.contains('active')){ pendingStandingsRows = rows; return; } // tab switched away meanwhile
+    destroyChartOn(canvas);
+    const pal = chartPalette();
+    const axisTitle = t => ({display:true, text:t, color:pal.muted});
+    standingsChartInstance = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: rows.map(r=>r.team),
+        datasets: [
+          { label:'Points', data:rows.map(r=>r.pts), backgroundColor:pal.gold, yAxisID:'y', borderRadius:3 },
+          { label:'NRR', data:rows.map(r=>r.nrr), backgroundColor:rows.map(r=>r.nrr>=0 ? pal.green : pal.red), yAxisID:'y1', borderRadius:3 },
+        ]
+      },
+      options: {
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{ legend:{ labels:{ color:pal.ink } } },
+        scales:{
+          x:{ ticks:{ color:pal.muted, maxRotation:60, minRotation:30, font:{size:10} }, grid:{ color:pal.border }, border:{ color:pal.border } },
+          y:{ position:'left', title:axisTitle('Points'), ticks:{ color:pal.muted }, grid:{ color:pal.border }, border:{ color:pal.border } },
+          y1:{ position:'right', title:axisTitle('NRR'), ticks:{ color:pal.muted }, grid:{ drawOnChartArea:false }, border:{ color:pal.border } },
+        }
       }
-    }
+    });
   });
 }
 // Destroy + rebuild with the current palette (called by the theme toggle / system theme change).
@@ -908,9 +995,10 @@ renderStandings(DATA.seasons[0]);
 // BUG FIX (sort crash): makeComparator() handles 'player' (string) and
 // 'rank' (unsortable) instead of falling through to numeric subtraction.
 // ======================================================================
+const ANCHOR_MIN_BALLS = 50;   // "more than 50 balls faced" — same rule the Scouting tab documents
 function archetypeOf(dotPct, boundaryPct, balls){
   if(!balls || balls < 20) return null;
-  if(dotPct < 35 && boundaryPct < 50) return 'Anchor';
+  if(balls > ANCHOR_MIN_BALLS && dotPct < 35 && boundaryPct < 50) return 'Anchor';
   if(boundaryPct > 65) return 'Power';
   if(dotPct > 50 && boundaryPct < 40) return 'Struggler';
   return null;
@@ -939,6 +1027,8 @@ function battingDerived(r, impactMap){
 
 let compareList = [];
 let compareSeasonContext = 'all';
+const comparePlayerSeasons = {};
+
 function syncCompareUI(){
   const hasSelection = compareList.length > 0;
   const actionsBar = document.getElementById('compareActions');
@@ -964,6 +1054,7 @@ function syncCompareUI(){
 function clearComparison(){
   compareList = [];
   compareSeasonContext = 'all';
+  Object.keys(comparePlayerSeasons).forEach(k=>delete comparePlayerSeasons[k]);
   syncCompareUI();
   closePlayerModal();
 }
@@ -979,17 +1070,26 @@ document.addEventListener('change', e=>{
       alert('You can compare a maximum of 2 players.');
       return;
     }
-    if(!compareList.includes(name)) compareList.push(name);
-    compareSeasonContext = season;
+    if(!compareList.includes(name)){
+      compareList.push(name);
+      comparePlayerSeasons[name] = season;
+      // The comparison has one shared period selector. Keep the period from
+      // the first selected player instead of silently switching it when a
+      // second player is selected from another table/season.
+      if(compareList.length===1) compareSeasonContext = season;
+    }
   }else{
     compareList = compareList.filter(x=>x!==name);
+    delete comparePlayerSeasons[name];
+    if(compareList.length===1) compareSeasonContext = comparePlayerSeasons[compareList[0]] || 'all';
+    if(compareList.length===0) compareSeasonContext = 'all';
   }
   syncCompareUI();
 });
 let battingState = {season:'all', sortKey:'runs', sortDir:-1, search:'', archetype:'all', minBalls:0, team:'all'};
 function renderBatting(){
   const impactMap = impactIndexMap(battingState.season);
-  let rows = DATA.batting[battingState.season].map(r=>battingDerived(r, impactMap));
+  let rows = (DATA.batting?.[battingState.season] || []).map(r=>battingDerived(r, impactMap));
   if(battingState.search) rows = rows.filter(r=>r.player.toLowerCase().includes(battingState.search));
   // NEW: Archetype filter
   if(battingState.archetype!=='all') rows = rows.filter(r=>r.archetype===battingState.archetype);
@@ -1017,10 +1117,10 @@ function renderBatting(){
 }
 buildSeg('battingSeasonSeg', [{label:'All-time',value:'all'}].concat(DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1),value:s}))), v=>{battingState.season=v; renderBatting();});
 attachSort('battingTable', battingState, renderBatting);
-document.getElementById('battingSearch').addEventListener('input', e=>{battingState.search=e.target.value.toLowerCase(); renderBatting();});
+document.getElementById('battingSearch')?.addEventListener('input', e=>{battingState.search=e.target.value.toLowerCase(); renderBatting();});
 // NEW: Archetype + Volume filter listeners
-document.getElementById('battingArchetypeFilter').addEventListener('change', e=>{battingState.archetype=e.target.value; renderBatting();});
-document.getElementById('battingVolumeFilter').addEventListener('change', e=>{battingState.minBalls=+e.target.value; renderBatting();});
+document.getElementById('battingArchetypeFilter')?.addEventListener('change', e=>{battingState.archetype=e.target.value; renderBatting();});
+document.getElementById('battingVolumeFilter')?.addEventListener('change', e=>{battingState.minBalls=+e.target.value; renderBatting();});
 // NEW: populate + wire the team filter (teams derived from DATA.matches, alphabetical)
 populateTeamFilter('battingTeamFilter', v=>{battingState.team=v; renderBatting();});
 renderBatting();
@@ -1042,7 +1142,7 @@ function bowlingDerived(r, impactMap){
 let bowlingState = {season:'all', sortKey:'wickets', sortDir:-1, search:'', minOvers:0, phase:'all', team:'all'};
 function renderBowling(){
   const impactMap = impactIndexMap(bowlingState.season);
-  let rows = DATA.bowling[bowlingState.season].map(r=>bowlingDerived(r, impactMap));
+  let rows = (DATA.bowling?.[bowlingState.season] || []).map(r=>bowlingDerived(r, impactMap));
   if(bowlingState.search) rows = rows.filter(r=>r.player.toLowerCase().includes(bowlingState.search));
   // NEW: Overs filter (min overs bowled)
   if(bowlingState.minOvers>0) rows = rows.filter(r=>r.overs>=bowlingState.minOvers);
@@ -1060,7 +1160,7 @@ function renderBowling(){
   rows.forEach((r,i)=>{
     const tr = el('tr');
     tr.innerHTML = `<td class="rank">${i+1}</td><td class="pname"><input class="compare-check" type="checkbox" data-player="${r.player}" data-season="${bowlingState.season}" aria-label="Add ${r.player} to comparison"> <span class="player-link" data-player="${r.player}">${r.player}</span></td><td>${r.innings}</td>`+
-      `<td>${fmtOvers(r.balls)}</td><td>${r.runs}</td><td>${r.wickets}</td><td>${r.econ}</td>`+
+      `<td>${fmtOvers(r.balls)}</td><td>${r.runs}</td><td>${r.wickets}</td><td>${f2(r.econ)}</td>`+
       `<td>${fmt(r.avg)}</td><td>${fmt(r.sr)}</td><td>${r.dotPct}%</td>`+
       `<td>${r.impact}</td><td>${r.ppWkts}</td><td>${fmt(r.ppSR)}</td>`;
     tbody.appendChild(tr);
@@ -1107,7 +1207,7 @@ function renderH2HSpotlight(){
   const {t1,t2,season} = h2hState, box = document.getElementById('h2hSpotBody');
   if(t1===t2){ box.innerHTML = '<p class="h2h-empty">Pick two different teams to see their head-to-head record.</p>'; return; }
   const ms = DATA.matches.filter(m=>(season==='all'||m.season===season) && ((m.team1===t1&&m.team2===t2)||(m.team1===t2&&m.team2===t1)))
-                         .sort((a,b)=>a.date.localeCompare(b.date));
+                         .sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))); 
   if(!ms.length){ box.innerHTML = '<p class="h2h-empty">These teams did not meet in this season.</p>'; return; }
   const n = ms.length, w1 = ms.filter(m=>m.winner===t1).length, w2 = ms.filter(m=>m.winner===t2).length, dec = w1+w2;
   const side = (t,w,c) => `<div class="h2h-side" style="--c:${c}"><div class="h2h-team">${t}</div><div class="h2h-wins num">${w}</div><div class="h2h-pct">${pct(w,n)}% win rate</div></div>`;
@@ -1232,6 +1332,7 @@ function computeTossImpact(season){
 
 function renderPhases(season){
   const t = computeTossImpact(season);
+  document.getElementById('phaseHint').textContent = 'Run rate: Powerplay (overs 1–6) · Middle (7–15) · Death (16–20), '+(season==='all' ? 'across all matches in both seasons.' : 'season '+season+' only.');
   const cards = document.getElementById('tossCards');
   cards.innerHTML = '';
   [[`${t.toss_winner_also_match_winner} / ${t.total} (${pct(t.toss_winner_also_match_winner, t.total)}%)`, 'Toss winner also won match'],
@@ -1269,24 +1370,28 @@ const MIN_PHASE_BALLS = 24;
 const PHASE_KEY_MAP = {pp:'powerplay', mid:'middle', death:'death'};
 
 function trueBattingPhase(r, season){
-  const tp = DATA.phases[season];
+  const tp = DATA.phases?.[season] || DATA.phases?.all || {};
   const out = {};
   ['powerplay','middle','death'].forEach(ph=>{
     const p = r.phase[ph];
     if(!p || p.balls < MIN_PHASE_BALLS){ out[ph]=null; return; }
     const sr = +(p.runs/p.balls*100).toFixed(1);
-    out[ph] = { value: sr, trueValue: +(sr - tp[ph].strike_rate).toFixed(1), balls:p.balls };
+    const baseline = Number(tp?.[ph]?.strike_rate);
+    if(!Number.isFinite(baseline)){ out[ph]=null; return; }
+    out[ph] = { value: sr, trueValue: +(sr - baseline).toFixed(1), balls:p.balls };
   });
   return out;
 }
 function trueBowlingPhase(r, season){
-  const tp = DATA.phases[season];
+  const tp = DATA.phases?.[season] || DATA.phases?.all || {};
   const out = {};
   ['powerplay','middle','death'].forEach(ph=>{
     const p = r.phase[ph];
     if(!p || p.balls < MIN_PHASE_BALLS){ out[ph]=null; return; }
     const econ = +(p.runs/(p.balls/6)).toFixed(2);
-    out[ph] = { value: econ, trueValue: +(econ - tp[ph].run_rate).toFixed(2), balls:p.balls };
+    const baseline = Number(tp?.[ph]?.run_rate);
+    if(!Number.isFinite(baseline)){ out[ph]=null; return; }
+    out[ph] = { value: econ, trueValue: +(econ - baseline).toFixed(2), balls:p.balls };
   });
   return out;
 }
@@ -1294,7 +1399,7 @@ function trueBowlingPhase(r, season){
 let truePhaseState = {type:'batting', season:'all', search:'', team:'all', sortPhase:null, sortDir:-1};
 function renderTruePhase(){
   const isBat = truePhaseState.type==='batting';
-  const source = (isBat ? DATA.batting : DATA.bowling)[truePhaseState.season];
+  const source = ((isBat ? DATA.batting : DATA.bowling)?.[truePhaseState.season]) || [];
   let rows = source.map(r=>({ player:r.player, phase: isBat ? trueBattingPhase(r, truePhaseState.season) : trueBowlingPhase(r, truePhaseState.season) }))
                    .filter(r=> r.phase.powerplay || r.phase.middle || r.phase.death);
   if(truePhaseState.search) rows = rows.filter(r=>r.player.toLowerCase().includes(truePhaseState.search));
@@ -1363,13 +1468,110 @@ renderTruePhase();
 // ======================================================================
 const MODAL_PHASES = [['powerplay','Powerplay'],['middle','Middle'],['death','Death']];
 let playerModalState = {name:null, names:null, season:'all'};
+let modalReturnFocus = null;
 function openPlayerModal(name, season='all'){
+  if(!document.getElementById('playerModalOverlay').classList.contains('open')) modalReturnFocus = document.activeElement;
   playerModalState = {name, names:null, season};
   renderPlayerModal();
 }
 function openPlayerComparison(names, season='all'){
+  if(!document.getElementById('playerModalOverlay').classList.contains('open')) modalReturnFocus = document.activeElement;
   playerModalState = {name:null, names:[...names].slice(0,2), season};
   renderPlayerModal();
+}
+// ---------- Comparison radar chart ----------
+let compareChartInstance = null;
+let compareRenderToken = 0;            // invalidates a queued (layout-waiting) radar render
+function destroyCompareChart(){
+  compareRenderToken++;                // cancel any radar render still waiting for layout
+  if(compareChartInstance){ compareChartInstance.destroy(); compareChartInstance = null; }
+}
+const clamp100 = v => Math.min(100, Math.max(0, v));
+const RADAR_AXES = ['Batting SR','Batting Avg','Boundary %','Bowling Wkts','Economy Control','Bowling Dot %'];
+// Raw values (null when the player has no record for that discipline) + 0-100 normalised scores.
+function radarProfile(name, season){
+  const bat  = (DATA.batting[season]||[]).find(b=>b.player===name);
+  const bowl = (DATA.bowling[season]||[]).find(b=>b.player===name);
+  // Never dismissed but has scored: an average is undefined, so score volume (runs vs the 50 benchmark) instead.
+  const notOut = !!(bat && bat.dismissals === 0 && bat.runs > 0);
+  const raw = [
+    bat  && bat.sr  != null ? bat.sr  : null,                                            // strike rate
+    bat  && bat.avg != null ? bat.avg : null,                                            // average (null if never dismissed)
+    bat  && bat.runs        ? pct(bat.fours*4 + bat.sixes*6, bat.runs) : null,           // boundary-run %
+    bowl ? bowl.wickets : null,                                                          // wickets
+    bowl && bowl.balls >= 6 && bowl.econ != null ? bowl.econ : null,                     // economy (needs at least one over)
+    bowl && bowl.balls      ? pct(bowl.dots, bowl.balls) : null,                         // bowling dot %
+  ];
+  const norm = [
+    raw[0] == null ? 0 : clamp100(raw[0] / 200 * 100),
+    notOut ? clamp100(bat.runs / 50 * 100) : (raw[1] == null ? 0 : clamp100(raw[1] / 50 * 100)),
+    raw[2] == null ? 0 : clamp100(raw[2] / 100 * 100),
+    raw[3] == null ? 0 : clamp100(raw[3] / 20  * 100),
+    raw[4] == null ? 0 : clamp100(Math.max(0, ((12 - raw[4]) / 7) * 100)),               // ~5 rpo = 100, 12 rpo = 0
+    raw[5] == null ? 0 : clamp100(raw[5] / 100 * 100),
+  ].map(v => +v.toFixed(1));
+  return {raw, norm, notOut, runs: bat ? bat.runs : 0};
+}
+const RADAR_FMT = [v=>v.toFixed(1), v=>v.toFixed(1), v=>v.toFixed(1)+'%', v=>String(v), v=>v.toFixed(2), v=>v.toFixed(1)+'%'];
+function hexToRgba(c, a){
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((c||'').trim());
+  if(!m) return c;
+  let h = m[1]; if(h.length===3) h = h.split('').map(x=>x+x).join('');
+  return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;
+}
+function renderCompareRadar(names, season){
+  destroyCompareChart();                                   // never leave a ghost chart on the canvas
+  const canvas = document.getElementById('compareRadarChart');
+  if(!canvas) return;
+  const box = canvas.parentElement;
+  if(!chartsAvailable()){ setChartMessage(box, 'Radar chart unavailable: the Chart.js library could not be loaded. The comparison stats below are unaffected.'); return; }
+  const token = ++compareRenderToken;
+  // The overlay is already display:flex here (openOverlay ran first); still confirm the box has a real size before Chart.js measures it.
+  whenLaidOut(box, () => {
+    if(token !== compareRenderToken || !canvas.isConnected) return;   // superseded, modal closed, or body re-rendered
+    destroyChartOn(canvas);
+    buildCompareRadar(canvas, names, season);
+  });
+}
+function buildCompareRadar(canvas, names, season){
+  const pal = chartPalette();                              // resolved theme colours (canvas can't read var())
+  const colors = [pal.gold, pal.green];                    // var(--gold), var(--green-glow)
+  const profiles = names.map(n => radarProfile(n, season));
+  compareChartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'radar',
+    data: {
+      labels: RADAR_AXES,
+      datasets: names.map((n,i)=>({
+        label: n,
+        data: profiles[i].norm,
+        backgroundColor: hexToRgba(colors[i], 0.22),
+        borderColor: colors[i],
+        pointBackgroundColor: colors[i],
+        pointBorderColor: colors[i],
+        borderWidth: 2,
+        pointRadius: 3,
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: pal.ink } },
+        tooltip: { callbacks: { label: ctx => {
+          const pr = profiles[ctx.datasetIndex], raw = pr.raw[ctx.dataIndex];
+          if(ctx.dataIndex === 1 && pr.notOut) return ` ${ctx.dataset.label}: not out (scored on ${pr.runs} runs) (score ${ctx.parsed.r})`;
+          return ` ${ctx.dataset.label}: ${raw == null ? 'no data' : RADAR_FMT[ctx.dataIndex](raw)} (score ${ctx.parsed.r})`;
+        } } }
+      },
+      scales: { r: {
+        min: 0, max: 100,
+        ticks: { stepSize: 25, color: pal.muted, backdropColor: 'transparent', showLabelBackdrop: false },
+        grid: { color: pal.border },
+        angleLines: { color: pal.border },
+        pointLabels: { color: pal.ink, font: { size: 11 } },
+      } }
+    }
+  });
 }
 function comparisonPhaseRow(label, batPhase, bowlPhase){
   const bat = batPhase ? `${batPhase.runs} / ${batPhase.balls} (${batPhase.balls ? (batPhase.runs/batPhase.balls*100).toFixed(1) : '—'} SR)` : '—';
@@ -1393,7 +1595,7 @@ function comparisonCard(name, season){
     `</div>`;
   html += `<h4>Bowling</h4><div class="modal-stat-grid">`+
     stat(bowl ? bowl.wickets : '—','Wickets')+
-    stat(bowl ? bowl.econ : '—','Economy')+
+    stat(bowl ? f2(bowl.econ) : '—','Economy')+
     stat(bowl ? fmt(bowl.avg) : '—','Average')+
     stat(bowl ? fmt(bowl.sr) : '—','Strike Rate')+
     stat(bowl ? fmtOvers(bowl.balls) : '—','Overs')+
@@ -1404,23 +1606,32 @@ function comparisonCard(name, season){
     `</tbody></table></div></div>`;
   return html;
 }
+function openOverlay(){
+  const ov = document.getElementById('playerModalOverlay');
+  const firstOpen = !ov.classList.contains('open');
+  ov.classList.add('open');
+  if(firstOpen) document.getElementById('playerModalClose')?.focus();
+}
 function renderPlayerModal(){
   const {name, names, season} = playerModalState;
   const body = document.getElementById('playerModalBody');
   const modalBox = document.querySelector('#playerModalOverlay .modal-box');
+  destroyCompareChart();                                  // old canvas is about to be replaced
   if(names && names.length===2){
     modalBox?.classList.add('compare-mode');
     const title = 'Player Comparison';
     body.innerHTML = `<h3 id="playerModalTitle">${title}</h3>`+
       `<p class="compare-intro">Side-by-side Batting, Bowling and phase performance for the selected period.</p>`+
       `<div class="modal-period"><label for="playerModalSeason">Period</label><select id="playerModalSeason" class="filter-select" aria-label="Comparison period">${['all',...DATA.seasons].map(v=>`<option value="${v}"${v===season?' selected':''}>${v==='all'?'All-time':v}</option>`).join('')}</select></div>`+
+      `<div class="chart-box" style="height:260px; max-height:40vh; margin-bottom:14px;"><canvas id="compareRadarChart"></canvas></div>`+
       `<div class="compare-grid">${names.map(n=>comparisonCard(n,season)).join('')}</div>`+
       `<div style="display:flex;justify-content:flex-end;margin-top:14px;"><button id="compareClearModal" class="compare-clear" type="button">Clear Comparison</button></div>`;
     const periodSelect = document.getElementById('playerModalSeason');
-    if(periodSelect) periodSelect.addEventListener('change', e=>{ playerModalState.season=e.target.value; compareSeasonContext=e.target.value; renderPlayerModal(); });
+    if(periodSelect) periodSelect.onchange = e=>{ playerModalState.season=e.target.value; compareSeasonContext=e.target.value; renderPlayerModal(); };
     const clearModal = document.getElementById('compareClearModal');
-    if(clearModal) clearModal.addEventListener('click', clearComparison);
-    document.getElementById('playerModalOverlay').classList.add('open');
+    if(clearModal) clearModal.onclick = clearComparison;
+    openOverlay();                       // overlay must be display:flex BEFORE Chart.js measures the canvas
+    renderCompareRadar(names, season);
     return;
   }
 
@@ -1454,7 +1665,7 @@ function renderPlayerModal(){
   }
   if(bowl){
     html += `<h4>Bowling</h4><div class="modal-stat-grid">`+
-      stat(bowl.wickets,'Wickets')+stat(bowl.econ,'Economy')+stat(fmt(bowl.avg),'Average')+
+      stat(bowl.wickets,'Wickets')+stat(f2(bowl.econ),'Economy')+stat(fmt(bowl.avg),'Average')+
       stat(fmt(bowl.sr),'Strike Rate')+stat(fmtOvers(bowl.balls),'Overs')+stat(bowl.innings,'Innings')+`</div>`;
     html += `<h4>Bowling by phase</h4><div class="modal-stat-grid">`+MODAL_PHASES.map(([k,l])=>{
       const p = bowl.phase[k];
@@ -1463,17 +1674,24 @@ function renderPlayerModal(){
     }).join('')+`</div>`;
     const rows = seasonRows('bowling');
     if(rows.length>1) html += `<h4>All-time vs season · bowling</h4>`+cmpTable(['Inn','Overs','Wkts','Econ','Avg'],
-      [['All-time',[bowl.innings,fmtOvers(bowl.balls),bowl.wickets,bowl.econ,fmt(bowl.avg)]]].concat(rows.map(([l,x])=>[l,[x.innings,fmtOvers(x.balls),x.wickets,x.econ,fmt(x.avg)]])));
+      [['All-time',[bowl.innings,fmtOvers(bowl.balls),bowl.wickets,f2(bowl.econ),fmt(bowl.avg)]]].concat(rows.map(([l,x])=>[l,[x.innings,fmtOvers(x.balls),x.wickets,f2(x.econ),fmt(x.avg)]])));
     else html += seasonNote(rows);
   }
   if(!bat && !bowl) html += `<p style="color:var(--muted);">No stats found for this player.</p>`;
 
   body.innerHTML = html;
   const periodSelect = document.getElementById('playerModalSeason');
-  if(periodSelect) periodSelect.addEventListener('change', e=>{ playerModalState.season=e.target.value; renderPlayerModal(); });
-  document.getElementById('playerModalOverlay').classList.add('open');
+  if(periodSelect) periodSelect.onchange = e=>{ playerModalState.season=e.target.value; renderPlayerModal(); };
+  openOverlay();
 }
-function closePlayerModal(){ document.getElementById('playerModalOverlay').classList.remove('open'); }
+function closePlayerModal(){
+  const ov = document.getElementById('playerModalOverlay');
+  const wasOpen = ov.classList.contains('open');
+  ov.classList.remove('open');
+  destroyCompareChart();
+  if(wasOpen && modalReturnFocus && document.contains(modalReturnFocus)){ try{ modalReturnFocus.focus(); }catch(e){} }
+  modalReturnFocus = null;
+}
 
 
 // Delegated click: works for any .player-link, on any table, after any re-render.
@@ -1567,7 +1785,7 @@ function renderScouting(season){
   ppCards.innerHTML = '';
   ppBowlers.forEach(r=>ppCards.appendChild(el('div','card',
     `<h3><span class="player-link" data-player="${r.player}">${r.player}</span> <span style="color:var(--muted2);font-size:11px;">BOWL</span></h3>`+
-    `<div class="big">${signed(r.trueEcon)}</div><div class="sub">True Econ · ${r.wkts} PP wkts in ${r.balls} balls (${r.econ} econ)</div>`)));
+    `<div class="big">${signed(r.trueEcon)}</div><div class="sub">True Econ · ${r.wkts} PP wkts in ${r.balls} balls (${f2(r.econ)} econ)</div>`)));
   ppBatters.forEach(r=>ppCards.appendChild(el('div','card',
     `<h3><span class="player-link" data-player="${r.player}">${r.player}</span> <span style="color:var(--muted2);font-size:11px;">BAT</span></h3>`+
     `<div class="big">${signed(r.trueSR)}</div><div class="sub">True SR · ${r.boundaryPct}% boundary runs (${r.sr} SR)</div>`)));
@@ -1580,7 +1798,7 @@ function renderScouting(season){
   const anchors = battingSeason.filter(b=>{
     const dotPct = pct(b.dots, b.balls);
     const boundaryPct = pct(b.fours*4+b.sixes*6, b.runs);
-    return b.balls > 50 && dotPct < 35 && boundaryPct < 50;
+    return b.balls > ANCHOR_MIN_BALLS && dotPct < 35 && boundaryPct < 50;
   }).map(b=>{
     const dotPct = pct(b.dots, b.balls);
     const boundaryPct = pct(b.fours*4+b.sixes*6, b.runs);
@@ -1613,7 +1831,7 @@ function renderScouting(season){
   anchors.forEach(r=>{
     const tr = el('tr');
     tr.innerHTML = `<td class="pname"><span class="player-link" data-player="${r.player}">${r.player}</span> `+
-      `<span class="badge ${r.isProtector?'badge-anchor':'badge-struggler'}">${r.isProtector?'Protector':'Struggler'}</span></td>`+
+      `<span class="badge ${r.isProtector?'badge-anchor':'badge-struggler'}">${r.isProtector?'Anchor':'Failed Anchor'}</span></td>`+
       `<td>${fmt(r.avg)}</td><td>${r.sr}</td><td>${r.dotPct}%</td><td>${r.boundaryPct}%</td><td>${r.dismissals}</td>`+
       `<td style="text-align:left;color:var(--muted);font-size:12px;">${r.read}</td>`;
     anchorBody.appendChild(tr);
@@ -1622,10 +1840,12 @@ function renderScouting(season){
   // ---- Venue & toss strategy (live-pulled numbers, gold blueprint card) ----
   // Stays all-time regardless of the season toggle above — a single
   // season's sample of toss/venue outcomes is too small to slice usefully.
-  const venue = DATA.venues[0];
-  const t = DATA.toss_impact;
-  const ph = DATA.phases.all;
-  const rec = t.decision_field_winrate > t.decision_bat_winrate ? 'field first' : 'bat first';
+  const venue = (DATA.venues || [])[0];
+  const t = DATA.toss_impact || {decision_field_winrate:0,decision_field_count:0,decision_bat_winrate:0,decision_bat_count:0};
+  const ph = DATA.phases?.all || {powerplay:{run_rate:0},middle:{run_rate:0},death:{run_rate:0}};
+  const bfW = venue ? venue.bat_first_wins : 0, chW = venue ? venue.chase_wins : 0, decided = bfW + chW;
+  const rec = chW > bfW ? 'field first' : (bfW > chW ? 'bat first' : 'either way');
+  const recPct = decided ? +(Math.max(bfW, chW) / decided * 100).toFixed(1) : 0;
   document.getElementById('scoutVenueCard').innerHTML =
     `<h3>${venue ? venue.venue : 'Venue'} — Tactical Blueprint</h3>`+
     `<div class="modal-stat-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px;">`+
@@ -1636,9 +1856,10 @@ function renderScouting(season){
     `</div>`+
     `<p style="color:var(--muted);font-size:13px;line-height:1.6;">Scoring accelerates sharply through the innings here — `+
     `${ph.powerplay.run_rate} rpo in the powerplay, ${ph.middle.run_rate} rpo in the middle overs, and `+
-    `<b style="color:var(--ink)">${ph.death.run_rate} rpo at the death</b>. Combined with the toss-decision split above, `+
-    `the data favors a captain choosing to <b style="color:var(--gold)">${rec}</b> on winning the toss — `+
-    `chasing sides know their target and can play the death-overs acceleration with intent, rather than setting a total blind on a pitch that only gets easier to score on.</p>`;
+    `<b style="color:var(--ink)">${ph.death.run_rate} rpo at the death</b>. `+
+    `The bat-first/chase split (${bfW} vs ${chW} wins) points to <b style="color:var(--gold)">${rec}</b>`+
+    (decided && bfW !== chW ? ` (${recPct}% of decided matches)` : '')+`. The win rates above cover toss winners only, so read them as context rather than proof — `+
+    `with ${decided} matches the edge is small.</p>`;
 }
 buildSeg('scoutingSeasonSeg', [{label:'All-time',value:'all'}].concat(DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1)+' · '+s,value:s}))), renderScouting);
 renderScouting('all');
@@ -1660,7 +1881,8 @@ renderScouting('all');
   function applyIcon(theme){
     btn.textContent = theme === 'light' ? '☀️' : '🌙';
   }
-  let theme = localStorage.getItem(STORAGE_KEY);
+  let theme = null;
+  try { theme = localStorage.getItem(STORAGE_KEY); } catch(e) {}
   if(theme === 'light' || theme === 'dark'){
     root.setAttribute('data-theme', theme);
   } else {
@@ -1673,11 +1895,12 @@ renderScouting('all');
     try { localStorage.setItem(STORAGE_KEY, theme); } catch(e) {}
     applyIcon(theme);
     rerenderStandingsChart();   // destroy + rebuild Chart.js with the new palette
+    if(playerModalState.names && document.getElementById('playerModalOverlay').classList.contains('open')) renderCompareRadar(playerModalState.names, playerModalState.season);
   });
   // follow OS theme changes too, while no manual choice is stored
   if(window.matchMedia){
     const mq = window.matchMedia('(prefers-color-scheme: light)');
-    const onSys = () => { if(!root.hasAttribute('data-theme')){ theme = systemTheme(); applyIcon(theme); rerenderStandingsChart(); } };
+    const onSys = () => { if(!root.hasAttribute('data-theme')){ theme = systemTheme(); applyIcon(theme); rerenderStandingsChart(); if(playerModalState.names && document.getElementById('playerModalOverlay').classList.contains('open')) renderCompareRadar(playerModalState.names, playerModalState.season); } };
     if(mq.addEventListener) mq.addEventListener('change', onSys);
   }
 })();
@@ -1706,8 +1929,28 @@ function renderTeamProfile(){
   const card = (l,v,sub) => `<div class="card"><h3>${l}</h3><div class="big num">${v}</div><div class="sub">${sub}</div></div>`;
   const r = snap ? snap.row : null;
   const link = n => `<span class="player-link" data-player="${n}">${n}</span>`;
-  const bat = DATA.batting[season].filter(x=>playerInTeam(x.player, team, season)).sort((a,b)=>b.runs-a.runs).slice(0,5);
-  const bowl = DATA.bowling[season].filter(x=>playerInTeam(x.player, team, season)).sort((a,b)=>b.wickets-a.wickets || a.econ-b.econ).slice(0,5);
+  const aggregateBatting = () => {
+    const rows = DATA.seasons.flatMap(s => (DATA.batting[s]||[]).filter(x=>playerInTeam(x.player, team, s)));
+    const byPlayer = new Map();
+    rows.forEach(x=>{
+      const r=byPlayer.get(x.player)||{player:x.player,innings:0,runs:0,balls:0,dismissals:0,fours:0,sixes:0,fifties:0,hundreds:0,dots:0,highest:0};
+      r.innings += Number(x.innings)||0; r.runs += Number(x.runs)||0; r.balls += Number(x.balls)||0; r.dismissals += Number(x.dismissals)||0;
+      r.fours += Number(x.fours)||0; r.sixes += Number(x.sixes)||0; r.fifties += Number(x.fifties)||0; r.hundreds += Number(x.hundreds)||0; r.dots += Number(x.dots)||0;
+      r.highest = Math.max(r.highest, Number(x.highest)||0); byPlayer.set(x.player,r);
+    });
+    return [...byPlayer.values()].map(r=>({...r,avg:r.dismissals?r.runs/r.dismissals:null,sr:r.balls?r.runs/r.balls*100:null}));
+  };
+  const aggregateBowling = () => {
+    const rows = DATA.seasons.flatMap(s => (DATA.bowling[s]||[]).filter(x=>playerInTeam(x.player, team, s)));
+    const byPlayer = new Map();
+    rows.forEach(x=>{
+      const r=byPlayer.get(x.player)||{player:x.player,innings:0,wickets:0,runs:0,balls:0,dots:0};
+      r.innings += Number(x.innings)||0; r.wickets += Number(x.wickets)||0; r.runs += Number(x.runs)||0; r.balls += Number(x.balls)||0; r.dots += Number(x.dots)||0; byPlayer.set(x.player,r);
+    });
+    return [...byPlayer.values()].map(r=>({...r,econ:r.balls?r.runs/(r.balls/6):null,avg:r.wickets?r.runs/r.wickets:null,sr:r.wickets?r.balls/r.wickets:null}));
+  };
+  const bat = season==='all' ? aggregateBatting().sort((a,b)=>b.runs-a.runs).slice(0,5) : (DATA.batting[season]||[]).filter(x=>playerInTeam(x.player, team, season)).sort((a,b)=>b.runs-a.runs).slice(0,5);
+  const bowl = season==='all' ? aggregateBowling().sort((a,b)=>b.wickets-a.wickets || (a.econ??Infinity)-(b.econ??Infinity)).slice(0,5) : (DATA.bowling[season]||[]).filter(x=>playerInTeam(x.player, team, season)).sort((a,b)=>b.wickets-a.wickets || a.econ-b.econ).slice(0,5);
   const empty = n => `<tr><td colspan="${n}" style="text-align:center; padding:20px; color:var(--muted2);">No players found</td></tr>`;
   box.innerHTML =
     `<div class="team-hero"><h2>${team}</h2><div class="sub">${ctx}${snap && snap.rank ? ' · #'+snap.rank+' of '+snap.of+' in the league table' : ''}</div></div>`+
@@ -1718,7 +1961,7 @@ function renderTeamProfile(){
         (bat.length ? bat.map((x,i)=>`<tr><td class="rank">${i+1}</td><td class="pname">${link(x.player)}</td><td>${x.runs}</td><td>${fmt(x.avg)}</td><td>${fmt(x.sr)}</td></tr>`).join('') : empty(5))+
       `</tbody></table></div></div>`+
       `<div><h2 class="section-title">Top 5 wicket takers</h2><div class="table-scroll" style="max-height:none;"><table><thead><tr><th>#</th><th>Player</th><th>Wkts</th><th>Econ</th><th>Avg</th></tr></thead><tbody>`+
-        (bowl.length ? bowl.map((x,i)=>`<tr><td class="rank">${i+1}</td><td class="pname">${link(x.player)}</td><td>${x.wickets}</td><td>${fmt(x.econ)}</td><td>${fmt(x.avg)}</td></tr>`).join('') : empty(5))+
+        (bowl.length ? bowl.map((x,i)=>`<tr><td class="rank">${i+1}</td><td class="pname">${link(x.player)}</td><td>${x.wickets}</td><td>${f2(x.econ)}</td><td>${fmt(x.avg)}</td></tr>`).join('') : empty(5))+
       `</tbody></table></div></div>`+
     `</div>`;
 }
@@ -1728,7 +1971,7 @@ function renderTeamProfile(){
   teams.forEach(t=>{ const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
   teamProfileState.team = teams[0];
   sel.addEventListener('change', ()=>{ teamProfileState.team = sel.value; renderTeamProfile(); });
-  buildSeg('teamSeasonSeg', DATA.seasons.map(s=>({label:'S'+(DATA.seasons.indexOf(s)+1)+' · '+s,value:s})), v=>{ teamProfileState.season = v; renderTeamProfile(); });
+  buildSeg('teamSeasonSeg', [{label:'All-time',value:'all'}, ...DATA.seasons.map((s,i)=>({label:'S'+(i+1)+' · '+s,value:s}))], v=>{ teamProfileState.season = v; renderTeamProfile(); });
   renderTeamProfile();
 })();
 
@@ -1741,7 +1984,7 @@ function renderMatches(season){
   const grid = document.getElementById('matchesGrid');
   if(!grid) return;
   const ms = DATA.matches.filter(m=>m.season===season)
-    .sort((a,b)=> a.date.localeCompare(b.date) || (a.match_number||0)-(b.match_number||0));
+    .sort((a,b)=> String(a.date||'').localeCompare(String(b.date||'')) || (a.match_number||0)-(b.match_number||0));
   if(!ms.length){ grid.innerHTML = '<p class="hint">No matches for this season.</p>'; return; }
   grid.innerHTML = ms.map(m=>{
     const innings = DATA.innings_summary.filter(i=>i.match_id===m.match_id && i.innings<=2).sort((a,b)=>a.innings-b.innings);
@@ -1788,7 +2031,7 @@ function renderRecords(season){
 
   const bowl = (DATA.bowling[season] || []).filter(r=>r.balls>=60 && r.econ!=null);
   const econRows = top3(bowl, (a,b)=>(a.econ-b.econ) || (b.wickets-a.wickets))
-    .map((r,i)=>rowHtml(i, link(r.player), r.econ.toFixed(2), `${fmtOvers(r.balls)} ov · ${r.wickets} wkts`));
+    .map((r,i)=>rowHtml(i, link(r.player), f2(r.econ), `${fmtOvers(r.balls)} ov · ${r.wickets} wkts`));
 
   grid.innerHTML =
     card('Highest Team Totals', teamRows) +
